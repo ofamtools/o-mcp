@@ -1,0 +1,6 @@
+{
+  "mcpServers": {
+    "tuios": {"command": "tuios", "args": ["mcp"]},
+    "slack": {"type": "http", "url": "https://slack.example.test/mcp", "headers": {"Authorization": "Bearer xoxb-not-a-real-token"}}
+  }
+}
