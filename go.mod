@@ -5,7 +5,7 @@ go 1.27.1
 require (
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/unixsuperhero/o-ai v0.0.0-20261028061635-df9ff42d438a
-	github.com/unixsuperhero/ochazuke v0.24.0
+	github.com/unixsuperhero/ochazuke v0.25.0
 	github.com/unixsuperhero/oden v0.1.1
 )
 

@@ -42,7 +42,8 @@ var tables = map[string]table{
 		},
 	},
 	toolNoun: {
-		columns: []ochazuke.Column{{Title: "server", Min: 6, Priority: 1}, {Title: "tool", Min: 8}, {Title: "hints", Priority: 3}, {Title: "description", Priority: 2}},
+		// A tool is named by its server and its name: both pinned.
+		columns: []ochazuke.Column{{Title: "server", Min: 6, Priority: 1, Pinned: true}, {Title: "tool", Min: 8, Pinned: true}, {Title: "hints", Priority: 3}, {Title: "description", Priority: 2}},
 		cells: func(v any) []string {
 			r := v.(ToolRow)
 			return []string{r.ServerName, r.Tool, strings.Join(r.Hints, ","), firstLine(r.Description)}
