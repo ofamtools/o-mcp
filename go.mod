@@ -4,7 +4,7 @@ go 1.27.1
 
 require (
 	github.com/modelcontextprotocol/go-sdk v1.6.1
-	github.com/unixsuperhero/o-ai v0.0.0-00010101000000-000000000000
+	github.com/unixsuperhero/o-ai v0.0.0-20261028061635-df9ff42d438a
 	github.com/unixsuperhero/ochazuke v0.24.0
 	github.com/unixsuperhero/oden v0.1.1
 )
@@ -42,6 +42,3 @@ require (
 	golang.org/x/sys v0.47.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-// The o-ai harness package is on o-ai's mcp-pkg branch until it merges.
-replace github.com/unixsuperhero/o-ai => ../../../o-ai/.worktrees/mcp-pkg
