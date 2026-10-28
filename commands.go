@@ -30,6 +30,14 @@ func (t *Tool) commands(sh *ocli.Shell) []oden.Command {
 		forward("discover", "discover SERVER | --all: connect, list every tool, save the schemas (mcp-server discover)", serverNoun, "discover"),
 		forward("refresh", "refresh [SERVER]: discover the saved servers again (mcp-server refresh)", serverNoun, "refresh"),
 		forward("test", "test SERVER: initialize only (mcp-server test)", serverNoun, "test"),
+		forward("login", "login SERVER [--force]: sign in to an OAuth server in the browser; the tokens stay in the macOS Keychain (mcp-server login)", serverNoun, "login"),
+		forward("logout", "logout SERVER: revoke the sign-in when the server allows it and delete its Keychain item (mcp-server logout)", serverNoun, "logout"),
+		{Name: "auth", Summary: "auth status [SERVER]: signed in or not, expiry and scopes, never a token (mcp-server auth-status)", Run: func(ctx context.Context, rest []string) error {
+			if len(rest) == 0 || rest[0] != "status" {
+				return errors.New("usage: " + t.Prog + " auth status [SERVER]")
+			}
+			return sh.Run(ctx, append([]string{serverNoun, "auth-status"}, rest[1:]...))
+		}},
 		forward("tools", "tools [SERVER]: the saved tools, offline (mcp-tool list)", toolNoun, "list"),
 		forward("tool", "tool SERVER TOOL: one saved tool, its schema and call command (mcp-tool show)", toolNoun, "show"),
 		forward("examples", "examples [SERVER [TOOL]]: real calls from Claude and Codex session logs (mcp-example list)", exampleNoun, "list"),

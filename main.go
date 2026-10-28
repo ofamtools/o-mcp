@@ -10,6 +10,9 @@
 //	o-mcp discover SERVER | --all                   connect, list tools, save
 //	o-mcp refresh [SERVER]                          discover the saved servers again
 //	o-mcp test SERVER                               initialize only
+//	o-mcp login SERVER [--force]                    OAuth sign-in in the browser
+//	o-mcp logout SERVER                             revoke and forget the sign-in
+//	o-mcp auth status [SERVER]                      signed in or not, expiry, scopes
 //	o-mcp tools [SERVER]                            the saved tools
 //	o-mcp tool SERVER TOOL                          one saved tool and its schema
 //	o-mcp call SERVER TOOL [K=V...] [--data JSON | --args-file FILE|-] [--extract]
@@ -47,6 +50,10 @@ type Tool struct {
 	Prog           string // "o mcp" under o, else "o-mcp"; messages only
 	Now            func() time.Time
 	Timeout        time.Duration // per request; 0 is client's default
+	// Keyring holds sign-in tokens (nil: the macOS Keychain); OpenURL
+	// opens the browser for login (nil: open). Tests set both.
+	Keyring client.Keyring
+	OpenURL func(string) error
 }
 
 func main() {
@@ -100,7 +107,7 @@ func (t *Tool) now() time.Time {
 
 // options are the client's: this tool's home, project and environment.
 func (t *Tool) options() client.Options {
-	return client.Options{Home: t.Home, Project: t.Cwd, Getenv: t.getenv, Environ: t.Env, Timeout: t.Timeout}
+	return client.Options{Home: t.Home, Project: t.Cwd, Getenv: t.getenv, Environ: t.Env, Timeout: t.Timeout, Keyring: t.Keyring, OpenURL: t.OpenURL, Prompt: t.Stderr}
 }
 
 // store is o-mcp's data directory (client.DefaultStore).

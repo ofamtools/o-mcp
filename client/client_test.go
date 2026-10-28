@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http/httptest"
 	"os"
 	"reflect"
@@ -20,7 +21,8 @@ func TestMain(m *testing.M) {
 }
 
 func opts(t *testing.T) Options {
-	return Options{Home: t.TempDir(), Project: t.TempDir(), Getenv: func(string) string { return "" }, Timeout: 10 * time.Second}
+	return Options{Home: t.TempDir(), Project: t.TempDir(), Getenv: func(string) string { return "" }, Timeout: 10 * time.Second,
+		Keyring: NewMemoryKeyring(), OpenURL: noBrowser(t), Prompt: io.Discard}
 }
 
 func names(tools []*mcp.Tool) []string {
@@ -130,10 +132,16 @@ func TestHTTPBearerTokenAndUnreachable(t *testing.T) {
 	if _, err := Discover(ctx, headers, o); err != nil {
 		t.Fatalf("headers with a reference: %v", err)
 	}
+	// No credential in the config: a 401 asks for sign-in, not unreachable.
 	oauth := NewServer("oauth", map[string]any{"url": srv.URL})
 	_, err = Discover(ctx, oauth, o)
-	if !IsUnreachable(err) || !strings.Contains(err.Error(), "OAuth") {
-		t.Fatalf("no credential = %v, want unreachable", err)
+	if !IsNeedsLogin(err) || IsUnreachable(err) || !strings.Contains(err.Error(), "o-mcp login oauth") {
+		t.Fatalf("no credential = %v, want needs sign-in", err)
+	}
+	// A configured credential the server rejects is unreachable.
+	wrong := NewServer("wrong", map[string]any{"url": srv.URL, "headers": map[string]any{"Authorization": "Bearer nope"}})
+	if _, err = Discover(ctx, wrong, o); !IsUnreachable(err) || IsNeedsLogin(err) {
+		t.Fatalf("rejected credential = %v, want unreachable", err)
 	}
 }
 

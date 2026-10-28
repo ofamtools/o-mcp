@@ -70,7 +70,7 @@ func TestConfiguredInventory(t *testing.T) {
 		t.Fatalf("Find tuios = %v %v", s.ID, err)
 	}
 	// The bearer variable unset is a connect error, before any request.
-	_, _, err := transport(gh, Options{Getenv: func(string) string { return "" }}.withDefaults())
+	_, _, err := transport(gh, Options{Getenv: func(string) string { return "" }}.withDefaults(), nil)
 	if err == nil || !strings.Contains(err.Error(), "GH_MCP_TOKEN") {
 		t.Fatalf("unset bearer = %v", err)
 	}

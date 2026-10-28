@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"golang.org/x/oauth2"
 )
 
 // Version is the client version sent in initialize.
@@ -28,23 +29,49 @@ type Session struct {
 
 // Connect opens a session with the server: it resolves the server's
 // configuration (credentials from the current environment), starts or
-// reaches it and initializes. A disabled server is ErrDisabled; a remote
-// server answering 401 or 403 is an UnreachableError.
+// reaches it and initializes. A disabled server is ErrDisabled. A remote
+// server that signs in (Server.OAuth) gets its stored token, refreshed
+// before it expires and once on a 401; one that needs a sign-in is a
+// NeedsLoginError, unless o.Interactive, when Connect runs Login and
+// tries again. Any other 401 or 403 is an UnreachableError.
 func Connect(ctx context.Context, s Server, o Options) (*Session, error) {
+	sess, err := connect(ctx, s, o)
+	if err != nil && o.Interactive && IsNeedsLogin(err) {
+		if _, lerr := Login(ctx, s, o); lerr != nil {
+			return nil, lerr
+		}
+		o.Interactive = false
+		return connect(ctx, s, o)
+	}
+	return sess, err
+}
+
+func connect(ctx context.Context, s Server, o Options) (*Session, error) {
 	if s.Disabled {
 		return nil, fmt.Errorf("%s: %w", s.ID, ErrDisabled)
 	}
 	o = o.withDefaults()
-	t, status, err := transport(s, o)
+	var h *oauthHandler
+	if s.OAuth() {
+		h = newOAuthHandler(s, o)
+	}
+	t, status, err := transport(s, o, h)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", s.ID, err)
 	}
 	sess, err := ConnectTransport(ctx, s, t, o)
 	if err != nil && status != nil {
-		if code := status.get(); code == http.StatusUnauthorized || code == http.StatusForbidden {
+		code := status.get()
+		if h != nil {
+			if n := h.result(code); n != nil {
+				markNeedsLogin(o, s, n)
+				return nil, n
+			}
+		}
+		if code == http.StatusUnauthorized || code == http.StatusForbidden {
 			reason := fmt.Sprintf("the server answered %d", code)
-			if len(s.Headers) == 0 && s.BearerTokenEnv == "" && len(s.HeaderEnv) == 0 {
-				reason += " and its config gives no header or bearer token (an OAuth-only connector)"
+			if h != nil {
+				reason += " and its config gives no Authorization header or bearer token"
 			} else {
 				reason += " to the credential its config gives"
 			}
@@ -122,17 +149,28 @@ func (r *statusRecorder) set(code int) { r.mu.Lock(); r.code = code; r.mu.Unlock
 func (r *statusRecorder) get() int     { r.mu.Lock(); defer r.mu.Unlock(); return r.code }
 
 // headerTransport adds the configured headers to every request and records
-// the answer's status.
+// the answer's status. For an SSE server that signs in (the go-sdk's SSE
+// transport takes no OAuth handler) it also sends the stored token.
 type headerTransport struct {
 	headers map[string]string
 	status  *statusRecorder
 	base    http.RoundTripper
+	token   oauth2.TokenSource
 }
 
 func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req = req.Clone(req.Context())
 	for k, v := range t.headers {
 		req.Header.Set(k, v)
+	}
+	if t.token != nil {
+		tok, err := t.token.Token()
+		if err != nil {
+			return nil, err
+		}
+		if tok != nil {
+			req.Header.Set("Authorization", "Bearer "+tok.AccessToken)
+		}
 	}
 	res, err := t.base.RoundTrip(req)
 	if err == nil {
@@ -142,7 +180,7 @@ func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 // transport is the server's transport, its configuration resolved now.
-func transport(s Server, o Options) (mcp.Transport, *statusRecorder, error) {
+func transport(s Server, o Options, h *oauthHandler) (mcp.Transport, *statusRecorder, error) {
 	raw := s.raw
 	if raw == nil {
 		return nil, nil, errors.New("no configuration to connect with (a saved record, not a configured server)")
@@ -187,43 +225,66 @@ func transport(s Server, o Options) (mcp.Transport, *statusRecorder, error) {
 		cmd.Stderr = o.Stderr
 		return &mcp.CommandTransport{Command: cmd}, nil, nil
 	case "http", "sse":
-		endpoint := ""
-		for _, k := range []string{"url", "httpUrl", "serverUrl"} {
-			if endpoint = expand(text(raw, k)); endpoint != "" {
-				break
-			}
-		}
-		if endpoint == "" {
-			return nil, nil, errors.New("remote server has no url")
-		}
-		headers := map[string]string{}
-		for _, key := range []string{"headers", "http_headers"} {
-			for k, v := range object(raw[key]) {
-				if sv, ok := v.(string); ok {
-					headers[k] = expand(sv)
-				}
-			}
-		}
-		for k, v := range object(raw["env_http_headers"]) {
-			if name, ok := v.(string); ok && o.Getenv(name) != "" {
-				headers[k] = o.Getenv(name)
-			}
-		}
-		if name := s.BearerTokenEnv; name != "" {
-			if tok := o.Getenv(name); tok != "" {
-				headers["Authorization"] = "Bearer " + tok
-			} else {
-				return nil, nil, fmt.Errorf("bearer token variable %s is not set", name)
-			}
+		endpoint, headers, err := remote(s, o)
+		if err != nil {
+			return nil, nil, err
 		}
 		status := &statusRecorder{}
-		hc := &http.Client{Transport: &headerTransport{headers: headers, status: status, base: http.DefaultTransport}}
+		ht := &headerTransport{headers: headers, status: status, base: http.DefaultTransport}
+		hc := &http.Client{Transport: ht}
 		if s.Transport == "sse" {
+			if h != nil {
+				ht.token = h
+			}
 			return &mcp.SSEClientTransport{Endpoint: endpoint, HTTPClient: hc}, status, nil
 		}
-		return &mcp.StreamableClientTransport{Endpoint: endpoint, HTTPClient: hc, MaxRetries: -1, DisableStandaloneSSE: true}, status, nil
+		st := &mcp.StreamableClientTransport{Endpoint: endpoint, HTTPClient: hc, MaxRetries: -1, DisableStandaloneSSE: true}
+		if h != nil {
+			st.OAuthHandler = h
+		}
+		return st, status, nil
 	}
 	return nil, nil, fmt.Errorf("unsupported transport %q", s.Transport)
+}
+
+// remote is a remote server's endpoint and configured headers, resolved
+// now.
+func remote(s Server, o Options) (string, map[string]string, error) {
+	raw := s.raw
+	if raw == nil {
+		return "", nil, errors.New("no configuration to connect with (a saved record, not a configured server)")
+	}
+	expand := expander(o, s)
+	endpoint := ""
+	for _, k := range []string{"url", "httpUrl", "serverUrl"} {
+		if endpoint = expand(text(raw, k)); endpoint != "" {
+			break
+		}
+	}
+	if endpoint == "" {
+		return "", nil, errors.New("remote server has no url")
+	}
+	headers := map[string]string{}
+	for _, key := range []string{"headers", "http_headers"} {
+		for k, v := range object(raw[key]) {
+			if sv, ok := v.(string); ok {
+				headers[k] = expand(sv)
+			}
+		}
+	}
+	for k, v := range object(raw["env_http_headers"]) {
+		if name, ok := v.(string); ok && o.Getenv(name) != "" {
+			headers[k] = o.Getenv(name)
+		}
+	}
+	if name := s.BearerTokenEnv; name != "" {
+		if tok := o.Getenv(name); tok != "" {
+			headers["Authorization"] = "Bearer " + tok
+		} else {
+			return "", nil, fmt.Errorf("bearer token variable %s is not set", name)
+		}
+	}
+	return endpoint, headers, nil
 }
 
 // reference is a variable reference in a configured string: ${VAR},

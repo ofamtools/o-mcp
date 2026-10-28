@@ -248,7 +248,17 @@ func (t *Tool) shell() *ocli.Shell {
 		}, "discover again: SERVER, or every server with a saved snapshot").Positional("server").
 		Verb("test", func(c ochazuke.Ctx) ochazuke.Result {
 			return result(t.testServer(ctx, thing(c, serverNoun, "server")))
-		}, "connect and initialize, calling nothing: serverInfo, protocol version, capabilities").Positional("server").Fetch().
+		}, "connect and initialize, calling nothing: serverInfo, protocol version, capabilities (an OAuth server not signed in: needsLogin and the login command; never opens a browser)").Positional("server").Fetch().
+		Verb("login", func(c ochazuke.Ctx) ochazuke.Result {
+			force, _ := c.Args["force"].(bool)
+			return result(t.login(ctx, thing(c, serverNoun, "server"), force))
+		}, "sign in to an OAuth server in the browser (the MCP authorization flow: PKCE, a loopback redirect), keep the tokens in the macOS Keychain and connect once to check; --force signs in again when signed in").Positional("server").
+		Verb("logout", func(c ochazuke.Ctx) ochazuke.Result {
+			return result(t.logout(ctx, thing(c, serverNoun, "server")))
+		}, "revoke the server's sign-in when its authorization server allows it, and delete the Keychain item and the record").Positional("server").
+		Verb("auth-status", func(c ochazuke.Ctx) ochazuke.Result {
+			return result(t.authStatus(thing(c, serverNoun, "server")))
+		}, "the sign-in of SERVER, or of every OAuth server: signed-in, needs-sign-in or signed-out, issuer, expiry, scopes and the login command; never a token").Positional("server").Fetch().
 		Verb("tools", func(c ochazuke.Ctx) ochazuke.Result {
 			return result(toolList(thing(c, serverNoun, "server")))
 		}, "the server's saved tools (mcp-tool rows; offline)").Positional("server").Rows(toolNoun).Fetch().
@@ -284,15 +294,16 @@ func (t *Tool) shell() *ocli.Shell {
 	limitParam := ochazuke.Parameter{Type: "integer", Description: "at most this many rows, newest first (0: all)"}
 	params(r, "mcp-server.list", map[string]ochazuke.Parameter{
 		"harness": harnessParam,
-		"state":   {Type: "string", Enum: []string{"all", "enabled", "disabled", "saved", "stale", "unsaved"}, Description: "the view: all (default), enabled, disabled, saved (has a snapshot), stale (its config changed since), unsaved"},
+		"state":   {Type: "string", Enum: []string{"all", "enabled", "disabled", "saved", "stale", "unsaved", "signed-in", "needs-sign-in"}, Description: "the view: all (default), enabled, disabled, saved (has a snapshot), stale (its config changed since), unsaved, signed-in or needs-sign-in (OAuth)"},
 	})
-	for _, v := range []string{"show", "discover", "refresh", "test", "tools", "calls", "forget", "copy-id", "copy-address"} {
+	for _, v := range []string{"show", "discover", "refresh", "test", "tools", "calls", "forget", "copy-id", "copy-address", "logout", "auth-status"} {
 		params(r, "mcp-server."+v, map[string]ochazuke.Parameter{"server": serverParam})
 	}
 	params(r, "mcp-server.discover", map[string]ochazuke.Parameter{"server": serverParam, "all": {Type: "boolean", Description: "every enabled configured server; the batch continues past failures"}})
 	params(r, "mcp-server.calls", map[string]ochazuke.Parameter{"server": serverParam, "limit": limitParam})
 	params(r, "mcp-server.examples", map[string]ochazuke.Parameter{"server": serverParam, "harness": harnessParam, "limit": limitParam})
-	setHistory(r, ochazuke.HistoryChange, "mcp-server.discover", "mcp-server.refresh", "mcp-server.forget")
+	params(r, "mcp-server.login", map[string]ochazuke.Parameter{"server": serverParam, "force": {Type: "boolean", Description: "sign in again even when signed in"}})
+	setHistory(r, ochazuke.HistoryChange, "mcp-server.discover", "mcp-server.refresh", "mcp-server.forget", "mcp-server.login", "mcp-server.logout")
 	setHistory(r, ochazuke.HistoryAction, "mcp-server.copy-id", "mcp-server.copy-address")
 
 	// mcp-tool

@@ -79,6 +79,12 @@ func DefaultStore(home string, getenv func(string) string) Store {
 // snapshotPath is the file of a server ID: the ID made safe for a file
 // name, then a short hash of it so two IDs never share a file.
 func (st Store) snapshotPath(id string) string {
+	return filepath.Join(st.Dir, "servers", safeName(id)+".json")
+}
+
+// safeName is an ID made safe for a file name, then a short hash of it so
+// two IDs never share a file.
+func safeName(id string) string {
 	safe := strings.Map(func(r rune) rune {
 		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '.' || r == '-' || r == '_' {
 			return r
@@ -86,7 +92,7 @@ func (st Store) snapshotPath(id string) string {
 		return '_'
 	}, id)
 	sum := sha256.Sum256([]byte(id))
-	return filepath.Join(st.Dir, "servers", safe+"-"+hex.EncodeToString(sum[:4])+".json")
+	return safe + "-" + hex.EncodeToString(sum[:4])
 }
 
 // Save writes the snapshot atomically (a temporary file renamed over the

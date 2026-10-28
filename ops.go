@@ -26,6 +26,11 @@ type ServerRow struct {
 	Snapshot     string     `json:"snapshot"` // none, saved, stale (the config changed since)
 	Tools        int        `json:"tools"`    // saved tools, -1 when none are saved
 	DiscoveredAt *time.Time `json:"discoveredAt,omitempty"`
+	// Auth is the OAuth sign-in as recorded (signed-in, needs-sign-in;
+	// none until a connect or login met it); Login the command that signs
+	// in when it is needed. Read from files only, never the Keychain.
+	Auth  string `json:"auth,omitempty"`
+	Login string `json:"login,omitempty"`
 }
 
 // snapshotState is how a snapshot relates to the configured server.
@@ -60,6 +65,14 @@ func (t *Tool) serverRows() ([]ServerRow, []string) {
 			cur = nil
 		}
 		r.Snapshot = snapshotState(snap, cur)
+		if configured {
+			if st := client.AuthState(s, t.options()); st == client.SignedIn || st == client.NeedsSignIn {
+				r.Auth = st
+			}
+			if r.Auth == client.NeedsSignIn {
+				r.Login = client.LoginCommand(s.Name)
+			}
+		}
 		if snap != nil {
 			r.Tools = len(snap.Tools)
 			at := snap.DiscoveredAt
@@ -102,8 +115,10 @@ func filterServers(rows []ServerRow, harness, state string) ([]ServerRow, error)
 			keep = r.Snapshot == "stale"
 		case "unsaved":
 			keep = r.Snapshot == "none"
+		case client.SignedIn, client.NeedsSignIn:
+			keep = r.Auth == state
 		default:
-			return nil, fmt.Errorf("unknown --state %q: all, enabled, disabled, saved, stale or unsaved", state)
+			return nil, fmt.Errorf("unknown --state %q: all, enabled, disabled, saved, stale, unsaved, signed-in or needs-sign-in", state)
 		}
 		if keep {
 			out = append(out, r)
@@ -155,8 +170,9 @@ func (t *Tool) snapshot(ref string) (client.Snapshot, error) {
 }
 
 // DiscoverResult is a discovery's answer: the servers saved and the ones
-// that failed (Unreachable: the server needs a credential its config does
-// not give, such as an OAuth-only connector).
+// that failed (NeedsLogin: an OAuth server not signed in, with the login
+// command; Unreachable: the server rejected the credential its config
+// gives, or answered 403).
 type DiscoverResult struct {
 	Servers []DiscoveredServer `json:"servers"`
 	Errors  []DiscoverError    `json:"errors"`
@@ -172,6 +188,17 @@ type DiscoverError struct {
 	ID          string `json:"id"`
 	Error       string `json:"error"`
 	Unreachable bool   `json:"unreachable,omitempty"`
+	NeedsLogin  bool   `json:"needsLogin,omitempty"`
+	Login       string `json:"login,omitempty"`
+}
+
+func discoverError(id string, err error) DiscoverError {
+	e := DiscoverError{ID: id, Error: err.Error(), Unreachable: client.IsUnreachable(err), NeedsLogin: client.IsNeedsLogin(err)}
+	var n *client.NeedsLoginError
+	if errors.As(err, &n) {
+		e.Login = n.Command()
+	}
+	return e
 }
 
 // discover connects to each server, lists its tools and saves the
@@ -189,7 +216,7 @@ func (t *Tool) discover(ctx context.Context, servers []client.Server, batch bool
 			err = st.Save(snap)
 		}
 		if err != nil {
-			res.Errors = append(res.Errors, DiscoverError{ID: s.ID, Error: err.Error(), Unreachable: client.IsUnreachable(err)})
+			res.Errors = append(res.Errors, discoverError(s.ID, err))
 			continue
 		}
 		res.Servers = append(res.Servers, DiscoveredServer{ID: s.ID, Tools: len(snap.Tools), DiscoveredAt: snap.DiscoveredAt})
@@ -242,7 +269,12 @@ func (t *Tool) testServer(ctx context.Context, ref string) (map[string]any, erro
 	start := time.Now()
 	sess, err := client.Connect(ctx, s, t.options())
 	if err != nil {
-		return map[string]any{"id": s.ID, "ok": false, "unreachable": client.IsUnreachable(err), "error": err.Error()}, err
+		e := discoverError(s.ID, err)
+		out := map[string]any{"id": s.ID, "ok": false, "unreachable": e.Unreachable, "error": e.Error}
+		if e.NeedsLogin {
+			out["needsLogin"], out["login"] = true, e.Login
+		}
+		return out, err
 	}
 	defer sess.Close()
 	init := sess.Initialize()
@@ -447,6 +479,87 @@ func (t *Tool) calls(server, tool string) ([]client.Call, error) {
 		name := c.Server[strings.LastIndex(c.Server, ":")+1:]
 		if (server == "" || c.Server == server || name == server) && (tool == "" || c.Tool == tool) {
 			out = append(out, c)
+		}
+	}
+	return out, nil
+}
+
+// login signs in to the server in the browser (client.Login), unless it
+// is signed in already and not force, then connects once to check.
+func (t *Tool) login(ctx context.Context, ref string, force bool) (map[string]any, error) {
+	s, err := t.server(ref)
+	if err != nil {
+		return nil, err
+	}
+	o := t.options()
+	if st := client.Status(s, o); st.SignedIn && !force {
+		return map[string]any{"status": st, "already": true, "note": "already signed in; --force signs in again"}, nil
+	}
+	st, err := client.Login(ctx, s, o)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]any{"status": st}
+	sess, err := client.Connect(ctx, s, o)
+	if err != nil {
+		return out, fmt.Errorf("signed in, but connecting failed: %w", err)
+	}
+	defer sess.Close()
+	out["serverInfo"] = sess.Initialize().ServerInfo
+	return out, nil
+}
+
+// authServer is the server ref names for sign-in verbs: the configured
+// one, else a sign-in record by ID or name (its configuration gone).
+func (t *Tool) authServer(ref string) (client.Server, error) {
+	s, err := t.server(ref)
+	if err == nil || !errors.Is(err, client.ErrNotFound) {
+		return s, err
+	}
+	for _, r := range client.AuthRecords(t.options()) {
+		if r.Server == ref || r.Name == ref {
+			var rs client.Server
+			rs.ID, rs.Name = r.Server, r.Name
+			return rs, nil
+		}
+	}
+	return s, err
+}
+
+// logout revokes and deletes the server's sign-in.
+func (t *Tool) logout(ctx context.Context, ref string) (client.LogoutResult, error) {
+	s, err := t.authServer(ref)
+	if err != nil {
+		return client.LogoutResult{}, err
+	}
+	return client.Logout(ctx, s, t.options())
+}
+
+// authStatus is the sign-in status of one server, or of every configured
+// server sign-in applies to and every recorded one.
+func (t *Tool) authStatus(ref string) (any, error) {
+	o := t.options()
+	if ref != "" {
+		s, err := t.authServer(ref)
+		if err != nil {
+			return nil, err
+		}
+		return client.Status(s, o), nil
+	}
+	servers, _ := client.Configured(o)
+	out := []client.AuthStatus{}
+	seen := map[string]bool{}
+	for _, s := range servers {
+		if s.OAuth() && !s.Disabled {
+			seen[s.ID] = true
+			out = append(out, client.Status(s, o))
+		}
+	}
+	for _, r := range client.AuthRecords(o) {
+		if !seen[r.Server] {
+			var s client.Server
+			s.ID, s.Name = r.Server, r.Name
+			out = append(out, client.Status(s, o))
 		}
 	}
 	return out, nil

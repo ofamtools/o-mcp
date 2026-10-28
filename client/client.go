@@ -7,9 +7,12 @@
 // Credentials come only from the server's own configuration: its headers,
 // a bearer-token environment variable, a stdio server's env. They are
 // resolved at connect time and never stored: a Server carries the names
-// of variables and headers, not their values. A remote server that
-// answers 401 or 403 (an OAuth-only connector) is Unreachable, not a
-// failure of the inventory.
+// of variables and headers, not their values. A remote server whose
+// config gives no credential and that answers 401 needs an OAuth sign-in
+// (Login, `o-mcp login SERVER`): its tokens live only in the macOS
+// Keychain, Connect sends and refreshes them, and without them Connect
+// fails with a NeedsLoginError (IsNeedsLogin) and never opens a browser.
+// Any other 401 or 403 is Unreachable, not a failure of the inventory.
 //
 //	servers, _ := client.Configured(client.Options{})
 //	srv, _ := client.Find(servers, "slack")
@@ -44,6 +47,24 @@ type Options struct {
 	Environ []string            // a stdio server's base environment; default os.Environ
 	Timeout time.Duration       // connect and per-request timeout; default 30s
 	Stderr  io.Writer           // a stdio server's stderr; default discarded
+
+	// Sign-in (OAuth). Keyring holds the tokens (default Keychain, the
+	// macOS login keychain). AuthDir holds the non-secret sign-in records
+	// (default auth/ in DefaultStore's directory).
+	Keyring Keyring
+	AuthDir string
+	// Interactive lets Connect run the browser sign-in (Login) when the
+	// server needs it; otherwise Connect fails with a NeedsLoginError and
+	// never opens a browser. Scheduled and batch work leaves it false.
+	Interactive bool
+	// OpenURL opens the authorization URL (default: open on macOS,
+	// xdg-open elsewhere); Prompt is where Login prints it (default
+	// os.Stderr); SignInTimeout bounds the wait for the browser's
+	// redirect (default 5 minutes).
+	OpenURL       func(url string) error
+	Prompt        io.Writer
+	SignInTimeout time.Duration
+	Now           func() time.Time // token expiry checks; default time.Now
 }
 
 func (o Options) withDefaults() Options {
@@ -64,6 +85,18 @@ func (o Options) withDefaults() Options {
 	}
 	if o.Stderr == nil {
 		o.Stderr = io.Discard
+	}
+	if o.Keyring == nil {
+		o.Keyring = Keychain()
+	}
+	if o.OpenURL == nil {
+		o.OpenURL = openURL
+	}
+	if o.Prompt == nil {
+		o.Prompt = os.Stderr
+	}
+	if o.SignInTimeout <= 0 {
+		o.SignInTimeout = 5 * time.Minute
 	}
 	return o
 }
@@ -156,8 +189,9 @@ var (
 )
 
 // UnreachableError is a server o-mcp cannot reach with the credentials its
-// configuration gives: a remote server that answered 401 or 403, which is
-// how an OAuth-only connector answers.
+// configuration gives: a remote server that rejected its configured
+// credential, or answered 403. A server that asks for an OAuth sign-in is
+// a NeedsLoginError instead.
 type UnreachableError struct {
 	Server string
 	Reason string

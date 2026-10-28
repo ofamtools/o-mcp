@@ -34,6 +34,12 @@ var tables = map[string]table{
 			if r.Snapshot == "stale" {
 				state += ", stale"
 			}
+			switch r.Auth {
+			case client.SignedIn:
+				state += ", signed in"
+			case client.NeedsSignIn:
+				state += ", needs sign-in"
+			}
 			tools := ""
 			if r.Tools >= 0 {
 				tools = strconv.Itoa(r.Tools)

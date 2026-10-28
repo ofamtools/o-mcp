@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/unixsuperhero/o-mcp/client"
 	"github.com/unixsuperhero/o-mcp/internal/fake"
 	"github.com/unixsuperhero/oden"
 )
@@ -23,9 +24,10 @@ func TestMain(m *testing.M) {
 // a .claude.json whose fake server is this test binary, and every data and
 // cache path inside the home. Nothing reads or writes the real home.
 type env struct {
-	t    *testing.T
-	tool *Tool
-	home string
+	t     *testing.T
+	tool  *Tool
+	home  string
+	extra map[string]any // more servers in .claude.json
 }
 
 func newEnv(t *testing.T) *env {
@@ -52,14 +54,18 @@ func newEnv(t *testing.T) *env {
 	}
 	e := &env{t: t, home: home}
 	e.writeClaude(true)
-	e.tool = &Tool{Home: home, Cwd: t.TempDir(), Prog: "o-mcp", Env: []string{"PATH=" + os.Getenv("PATH"), "HOME=" + home, "O_MCP_CLIPBOARD=true"}}
+	e.tool = &Tool{Home: home, Cwd: t.TempDir(), Prog: "o-mcp", Env: []string{"PATH=" + os.Getenv("PATH"), "HOME=" + home, "O_MCP_CLIPBOARD=true"},
+		Keyring: client.NewMemoryKeyring(), OpenURL: func(u string) error { t.Errorf("a browser was opened for %s", u); return nil }}
 	return e
 }
 
 // writeClaude writes .claude.json: the fake stdio server (when fakeOn),
-// and an OAuth-only remote connector.
+// an OAuth-only remote connector, and e.extra.
 func (e *env) writeClaude(fakeOn bool) {
 	servers := map[string]any{"oauth-only": map[string]any{"type": "http", "url": "https://connector.example.test/mcp"}}
+	for k, v := range e.extra {
+		servers[k] = v
+	}
 	if fakeOn {
 		servers["fake"] = map[string]any{"command": os.Args[0], "env": map[string]any{fake.EnvStdio: "1", "FAKE_ENV": "${FAKE_SOURCE:-default}"}}
 	}

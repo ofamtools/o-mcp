@@ -36,6 +36,9 @@ o mcp configured [--harness H] [--state all|enabled|disabled|saved|stale|unsaved
 o mcp discover SERVER | --all      # connect, list every page of tools, save them
 o mcp refresh [SERVER]             # discover the saved servers again
 o mcp test SERVER                  # initialize only; calls nothing
+o mcp login SERVER [--force]       # OAuth sign-in in the browser; tokens go to the macOS Keychain
+o mcp logout SERVER                # revoke (when offered) and delete the Keychain item
+o mcp auth status [SERVER]         # signed in or not, issuer, expiry, scopes; never a token
 o mcp tools [SERVER]               # the saved tools, offline
 o mcp tool SERVER TOOL             # one tool: schemas, annotations, a ready call command
 o mcp call SERVER TOOL [KEY=VALUE...] [--data JSON | --args-file FILE|-] [--extract] [--timeout SECONDS]
@@ -68,7 +71,22 @@ $ o mcp call slack search_messages query='deploy' count=20
 
 ### Credentials
 
-Credentials come only from the server's own configuration, resolved when o-mcp connects: `headers` and `http_headers` (with `${VAR}`, `${env:VAR}`, `{env:VAR}`, `${VAR:-default}` references), Codex's `bearer_token_env_var` and `env_http_headers`, a stdio server's `env` or `environment`, and `cwd`. o-mcp never stores a value: records keep variable and header names, and the call history and examples pass a secret-value redaction. A remote server that answers 401 or 403 is reported as unreachable (an OAuth-only connector, such as Claude's claude.ai connectors); in `discover --all` it is one error line and the batch goes on.
+Credentials come only from the server's own configuration, resolved when o-mcp connects: `headers` and `http_headers` (with `${VAR}`, `${env:VAR}`, `{env:VAR}`, `${VAR:-default}` references), Codex's `bearer_token_env_var` and `env_http_headers`, a stdio server's `env` or `environment`, and `cwd`. o-mcp never stores a value: records keep variable and header names, and the call history and examples pass a secret-value redaction. A remote server whose configured credential is rejected (401) or that answers 403 is reported as unreachable; in `discover --all` it is one error line and the batch goes on.
+
+### Sign-in (OAuth)
+
+A remote server whose config gives no `Authorization` header and no bearer-token variable may ask for an OAuth sign-in instead (a gateway such as Runlayer does). Then `configured` shows `needs sign-in` once a connect has met it, and `test`, `discover` and `call` fail with `needs sign-in`, never `unreachable`, naming the command: `o-mcp login SERVER`.
+
+`o-mcp login SERVER` runs the MCP authorization flow (OAuth 2.1). It asks the server without a token and reads its 401 `WWW-Authenticate` challenge. It fetches the protected-resource metadata (the challenge's `resource_metadata`, else the well-known URLs) and then the authorization server's metadata. It registers a client: the config entry's `oauth.clientId` when set (Claude Code's spelling; `oauth.scopes` and `oauth.callbackPort` are read too), else dynamic client registration; without either it says to set `oauth.clientId`. It then opens the browser with `open`, printing the URL as a fallback, for the authorization-code flow with PKCE (S256) and a redirect to `127.0.0.1` on a random port. It exchanges the code, stores the tokens, and connects once to check. It is the only command that opens a browser: `call`, `discover`, `test`, the batch and every tool on package `client` (o-slack's scheduled poll) fail with the hint instead, so a schedule never pops a window. `--force` signs in again when already signed in.
+
+Every connect then sends the stored token. It refreshes the token a minute before it expires, and once when the server answers 401. If the refresh fails, the error says `sign in again: o-mcp login SERVER`. `o-mcp logout SERVER` revokes the tokens when the authorization server offers revocation and deletes them. `o-mcp auth status [SERVER]` shows the state (`signed-in`, `needs-sign-in`, `signed-out`), issuer, scopes, expiry and whether a refresh token is stored. It never shows a token.
+
+Where things live:
+
+- **Tokens:** only in the macOS login Keychain, as generic passwords with service `o-mcp` and account `SERVER_ID|ISSUER` (for example `claude:user:runlayer|https://auth.example.com`). One item holds the access and refresh tokens, the client id and secret, and the token and revocation endpoints. o-mcp drives `/usr/bin/security` (no cgo): writes go to `security -i` on stdin, so a token never appears on a command line, and a long item is split over `ACCOUNT`, `ACCOUNT#2`, and so on. On another OS sign-in fails rather than store tokens elsewhere.
+- **The record:** `auth/` in the data directory, one file per server. It holds the state, issuer, scopes, expiry and the Keychain account, and no token. `configured` reads only these files, never the Keychain.
+
+Tokens never go in a file, the catalog, the call history or JSON output, and the auth errors are redacted.
 
 ### Examples
 
@@ -78,7 +96,7 @@ Credentials come only from the server's own configuration, resolved when o-mcp c
 
 | Noun | Verbs |
 |---|---|
-| `mcp-server` | `list` (`--harness`, `--state`), `show`, `discover` (`--all`), `refresh`, `test`, `tools`, `examples`, `calls`, `forget` (delete the snapshot, never the config), `copy-id`, `copy-address` |
+| `mcp-server` | `list` (`--harness`, `--state`, including `signed-in` and `needs-sign-in`), `show`, `discover` (`--all`), `refresh`, `test`, `login` (`--force`), `logout`, `auth-status`, `tools`, `examples`, `calls`, `forget` (delete the snapshot, never the config), `copy-id`, `copy-address` |
 | `mcp-tool` | `list` (`--server`), `show`, `schema`, `copy-schema`, `call` (`--args '{...}'`), `examples`, `calls`, `copy-command` |
 | `mcp-call` | `list`, `show`, `again`, `copy-command` |
 | `mcp-example` | `list` (`--server`, `--tool`, `--harness`), `show`, `harvest` (`--rescan`), `again`, `copy-command` |
@@ -98,13 +116,15 @@ res, err := sess.Call(ctx, "search_messages", map[string]any{"query": "deploy"})
 data, err := client.Data(res)
 ```
 
-`Discover` returns a `Snapshot`; `Store` (`DefaultStore`) saves, loads and lists snapshots and records calls. `ConnectTransport` takes any go-sdk transport (an in-memory one in tests). Errors: `ErrNotFound`, `ErrAmbiguous`, `ErrDisabled`, `*UnreachableError` (`IsUnreachable`), `ErrNoData`.
+`Discover` returns a `Snapshot`. `Store` (`DefaultStore`) saves, loads and lists snapshots and records calls. `ConnectTransport` takes any go-sdk transport (an in-memory one in tests). Errors: `ErrNotFound`, `ErrAmbiguous`, `ErrDisabled`, `*UnreachableError` (`IsUnreachable`), `*NeedsLoginError` (`IsNeedsLogin`; its `Command()` is `o-mcp login NAME`), `ErrNoData`.
+
+Sign-in: `Connect` uses the stored tokens transparently and refreshes them. `Login(ctx, srv, opts)` runs the browser flow, and `Logout`, `Status`, `AuthState` (from the record alone) and `AuthRecords` manage it. `Options.Interactive` lets `Connect` run `Login` when the server needs it; it is off by default, so a library call never opens a browser. `Options.Keyring` defaults to `Keychain()`; tests pass `NewMemoryKeyring()`. `Options.OpenURL`, `Prompt`, `SignInTimeout` and `AuthDir` are the other knobs. `Server.OAuth()` reports whether sign-in applies.
 
 ## In the family
 
 - **o-ai** owns reading the harnesses' configuration (package `harness`); o-mcp adds connecting, which o-ai never does.
 - **mtm and nabe** mount `o-mcp catalog` as the MCP page: servers, tools, calls and examples in a groups rail, the selected row's record beside them. The extension namespace is `mcp`.
-- **o-slack** (next) reads Slack through `client` once a Slack MCP server with a credential is configured; `o mcp configured` shows it then.
+- **o-slack** reads Slack through `client`: a gateway entry with a header or bearer-token variable, or one signed in with `o-mcp login` (Runlayer). Its poll never opens a browser; it names the login command instead.
 
 ## Logo
 
