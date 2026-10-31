@@ -4,20 +4,20 @@
     <img alt="o-mcp" src="assets/logo-light.svg" width="247">
   </picture>
   <br>
-  <a href="go.mod"><img alt="Go version" src="https://img.shields.io/github/go-mod/go-version/unixsuperhero/o-mcp"></a>
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/unixsuperhero/o-mcp"></a>
+  <a href="go.mod"><img alt="Go version" src="https://img.shields.io/github/go-mod/go-version/ofamtools/o-mcp"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/ofamtools/o-mcp"></a>
 </p>
 
 <p align="center">The MCP servers your AI harnesses configure, in one place: see them all, save their tools for offline use, call a tool directly, and find the real calls your agents already made.</p>
 
-o-mcp (`o mcp` under [oden](https://github.com/unixsuperhero/oden)'s `o`, or `o-mcp`) is a Go recreation of `h-mcp` (`~/bin/h-mcp`, `~/bin/h-mcp.md`). It reads every harness's MCP configuration through [o-ai](https://github.com/unixsuperhero/o-ai)'s `harness` package, connects with the official [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk) over stdio, Streamable HTTP or legacy SSE, and keeps each server's discovered tools on disk, bound to the configuration they came from. Package [`client`](client) is the same work in process, for tools such as o-slack.
+o-mcp (`o mcp` under [oden](https://github.com/ofamtools/oden)'s `o`, or `o-mcp`) is a Go recreation of `h-mcp` (`~/bin/h-mcp`, `~/bin/h-mcp.md`). It reads every harness's MCP configuration through [o-ai](https://github.com/ofamtools/o-ai)'s `harness` package, connects with the official [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk) over stdio, Streamable HTTP or legacy SSE, and keeps each server's discovered tools on disk, bound to the configuration they came from. Package [`client`](client) is the same work in process, for tools such as o-slack.
 
 ## Install
 
-Module `github.com/unixsuperhero/o-mcp`; requires Go 1.27 or newer.
+Module `ofam.dev/o-mcp`; requires Go 1.27 or newer.
 
 ```sh
-go install github.com/unixsuperhero/o-mcp@latest
+go install ofam.dev/o-mcp@latest
 ```
 
 or, from a checkout:

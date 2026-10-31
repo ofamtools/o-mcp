@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/o-mcp/client"
-	"github.com/unixsuperhero/o-mcp/internal/fake"
-	"github.com/unixsuperhero/oden"
+	"ofam.dev/o-mcp/client"
+	"ofam.dev/o-mcp/internal/fake"
+	"ofam.dev/oden"
 )
 
 func TestMain(m *testing.M) {

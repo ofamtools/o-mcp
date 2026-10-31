@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/unixsuperhero/o-mcp/internal/fake"
+	"ofam.dev/o-mcp/internal/fake"
 )
 
 func TestMain(m *testing.M) {

@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unixsuperhero/o-mcp/client"
-	ocli "github.com/unixsuperhero/ochazuke/cli"
-	"github.com/unixsuperhero/oden"
+	"ofam.dev/o-mcp/client"
+	ocli "ofam.dev/ochazuke/cli"
+	"ofam.dev/oden"
 )
 
 // commands are the top-level operations. call is its own command (stdin,

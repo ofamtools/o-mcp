@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/unixsuperhero/o-mcp/internal/fake"
+	"ofam.dev/o-mcp/internal/fake"
 )
 
 func json_(v any) (string, error) { b, err := json.Marshal(v); return string(b), err }

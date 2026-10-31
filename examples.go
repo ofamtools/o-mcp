@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unixsuperhero/o-ai/harness"
-	"github.com/unixsuperhero/o-mcp/client"
+	"ofam.dev/o-ai/harness"
+	"ofam.dev/o-mcp/client"
 )
 
 // Examples are real calls the harnesses made while someone worked, read

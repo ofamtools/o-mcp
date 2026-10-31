@@ -1,12 +1,12 @@
-module github.com/unixsuperhero/o-mcp
+module ofam.dev/o-mcp
 
 go 1.27.1
 
 require (
 	github.com/modelcontextprotocol/go-sdk v1.6.1
-	github.com/unixsuperhero/o-ai v0.0.0-20261028061635-df9ff42d438a
-	github.com/unixsuperhero/ochazuke v0.25.0
-	github.com/unixsuperhero/oden v0.1.1
+	ofam.dev/o-ai v0.0.0-20261028061635-df9ff42d438a
+	ofam.dev/ochazuke v0.25.0
+	ofam.dev/oden v0.1.1
 	golang.org/x/oauth2 v0.35.0
 )
 

@@ -34,7 +34,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unixsuperhero/o-ai/harness"
+	"ofam.dev/o-ai/harness"
 )
 
 // Options are where servers are read from and how a connection runs. The

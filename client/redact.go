@@ -1,6 +1,6 @@
 package client
 
-import "github.com/unixsuperhero/o-ai/harness"
+import "ofam.dev/o-ai/harness"
 
 // RedactValues is v with every string's secret-looking parts (tokens,
 // bearer credentials, JWTs: o-ai's harness.SecretValue) replaced by

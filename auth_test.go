@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/o-mcp/client"
-	"github.com/unixsuperhero/o-mcp/internal/fake"
+	"ofam.dev/o-mcp/client"
+	"ofam.dev/o-mcp/internal/fake"
 )
 
 // TestSignInCommands walks an OAuth server through the CLI: needs sign-in

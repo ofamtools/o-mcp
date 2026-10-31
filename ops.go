@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/unixsuperhero/o-mcp/client"
+	"ofam.dev/o-mcp/client"
 )
 
 // The operations behind the verbs, each a plain function of the tool:

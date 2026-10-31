@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unixsuperhero/o-mcp/internal/fake"
+	"ofam.dev/o-mcp/internal/fake"
 )
 
 // noBrowser is an OpenURL that fails the test: nothing but an explicit

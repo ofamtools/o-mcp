@@ -4,8 +4,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/unixsuperhero/o-mcp/client"
-	"github.com/unixsuperhero/ochazuke"
+	"ofam.dev/o-mcp/client"
+	"ofam.dev/ochazuke"
 )
 
 // Tables: every row noun declares its columns (the catalog's columns) and

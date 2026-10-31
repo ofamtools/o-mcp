@@ -10,9 +10,9 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/unixsuperhero/o-mcp/client"
-	"github.com/unixsuperhero/ochazuke"
-	ocli "github.com/unixsuperhero/ochazuke/cli"
+	"ofam.dev/o-mcp/client"
+	"ofam.dev/ochazuke"
+	ocli "ofam.dev/ochazuke/cli"
 )
 
 // The runtime: four nouns a host lists (rowNouns), each list's rows
