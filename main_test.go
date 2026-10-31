@@ -285,11 +285,20 @@ func TestExamplesFromSessionLogs(t *testing.T) {
 func TestStateCarriesEveryNoun(t *testing.T) {
 	e := newEnv(t)
 	e.ok("discover", "fake")
+	e.ok("call", "fake", "echo", "text=state fixture")
+	want := map[string]any{}
+	for _, noun := range rowNouns {
+		for _, row := range rows(t, e.ok(noun, "list")) {
+			want[row.ID] = row.Data
+		}
+	}
 	out := e.ok("state")
 	seen := map[string]int{}
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
 		var r struct {
 			Noun  string   `json:"noun"`
+			ID    string   `json:"id"`
+			Data  any      `json:"data"`
 			Cells []string `json:"cells"`
 		}
 		if err := json.Unmarshal([]byte(line), &r); err != nil {
@@ -298,9 +307,12 @@ func TestStateCarriesEveryNoun(t *testing.T) {
 		if len(r.Cells) != len(tables[r.Noun].columns) {
 			t.Fatalf("%s row has %d cells for %d columns", r.Noun, len(r.Cells), len(tables[r.Noun].columns))
 		}
+		if r.Data == nil || !reflect.DeepEqual(r.Data, want[r.ID]) {
+			t.Errorf("%s state data = %#v, want list data %#v", r.ID, r.Data, want[r.ID])
+		}
 		seen[r.Noun]++
 	}
-	if seen[serverNoun] != 4 || seen[toolNoun] != 3 || seen[exampleNoun] != 4 {
+	if seen[serverNoun] != 4 || seen[toolNoun] != 3 || seen[callNoun] != 1 || seen[exampleNoun] != 4 {
 		t.Fatalf("state nouns = %v", seen)
 	}
 }

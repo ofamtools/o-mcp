@@ -104,6 +104,28 @@ Tokens never go in a file, the catalog, the call history or JSON output, and the
 
 Every verb takes its thing as words (`mcp-tool show tuios tuios_list_windows`) or as a row, `--target mcp-tool/claude:user:tuios/tuios_list_windows`. Copy verbs use `$O_MCP_CLIPBOARD`, else pbcopy, wl-copy, xclip or xsel, and answer the text.
 
+## MCP page
+
+The catalog page carries each row's real data. Its detail shows metadata followed by pretty-printed Arguments and Result JSON blocks for examples and calls. A result that parses as JSON is expanded; prose or a truncated result is shown as a JSON string. These remain the existing redacted result previews (up to 2048 bytes), not full responses. Calls use their saved `preview` as the result. Ochazuke's shared `detail.sections` setting defaults to `true`; `false` restores the plain record detail. No new app setting is needed.
+
+Tools reads saved snapshots offline. When empty: **no tools yet: run `mcp-server discover --all`**. Calls is **o-mcp's own calls; harvested examples are under Examples; `mcp-example again` re-runs one here**. The catalog currently has no empty-list text field, so the group labels carry short reminders and this section carries the full guidance.
+
+Default normal-mode bindings are catalog data, scoped to rows in their group:
+
+| Group | Key | Verb | Scope |
+|---|---|---|---|
+| Servers | `g d` | `mcp-server.discover` | Selected server |
+| Servers | `g r` | `mcp-server.refresh` | Selected server |
+| Examples | `g a` | `mcp-example.again` | Selected example; makes a real call |
+
+Enter a group to focus its rows before using these bindings. They avoid the framework's motions and the host's CRUD keys. Hosts import them only where they do not clash with their own bindings; the host's binding rows can remap or unbind them. Batch discovery remains available through the existing verb's `all` argument. The groups rail itself has no app-specific bindings: the host mounts catalog bindings on domain nouns, not individual rail instances.
+
+Example output now names the transcript file `transcript`, leaving `cwd` available for the host's project association. Legacy `path` is accepted on input, including existing harvest caches, for one release; output emits only `transcript` so the transcript cannot override the project directory.
+
+The structure/data split and bindings to open payloads in o-json still need the shared JSON section kind and host action support. This page uses the existing Markdown section kind until that library work ships.
+
+Compared with Vim: these three actions operate on MCP servers and recorded calls; there is no corresponding Vim action or `:help` tag (n/a). Existing list motion and detail scrolling retain the framework's Vim behavior.
+
 ## Package client
 
 ```go

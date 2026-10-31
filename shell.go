@@ -61,7 +61,11 @@ func callRow(c client.Call) ListRow {
 	if c.IsError || c.Error != "" {
 		label += ", error"
 	}
-	return ListRow{ID: callNoun + "/" + c.ID, Label: label, Data: c, Cells: tables[callNoun].cells(c)}
+	data := struct {
+		client.Call
+		Payload string `json:"payload"`
+	}{c, payloadMarkdown(c.Arguments, c.Preview)}
+	return ListRow{ID: callNoun + "/" + c.ID, Label: label, Data: data, Cells: tables[callNoun].cells(c)}
 }
 
 func exampleRow(e Example) ListRow {
@@ -69,7 +73,25 @@ func exampleRow(e Example) ListRow {
 	if e.IsError {
 		label += ", error"
 	}
-	return ListRow{ID: exampleNoun + "/" + e.ID, Label: label, Data: e, Cells: tables[exampleNoun].cells(e)}
+	data := struct {
+		Example
+		Payload string `json:"payload"`
+	}{e, payloadMarkdown(e.Arguments, e.Result)}
+	return ListRow{ID: exampleNoun + "/" + e.ID, Label: label, Data: data, Cells: tables[exampleNoun].cells(e)}
+}
+
+// TODO: replace this Markdown projection with arguments/result sections of
+// kind "json" when ochazuke ships that kind (including structure/data panes).
+// RawMessage preserves JSON numbers; prose and truncated results stay valid
+// JSON strings, so transcript text cannot escape the code fence.
+func payloadMarkdown(arguments map[string]any, response string) string {
+	args, _ := json.MarshalIndent(arguments, "", "  ")
+	var value any = response
+	if json.Valid([]byte(response)) {
+		value = json.RawMessage(response)
+	}
+	res, _ := json.MarshalIndent(value, "", "  ")
+	return "## Arguments\n\n```json\n" + string(args) + "\n```\n\n## Result\n\n```json\n" + string(res) + "\n```"
 }
 
 // thing is the id a verb acts on: the positional or flag argument name,
@@ -452,7 +474,7 @@ func (t *Tool) shell() *ocli.Shell {
 					fmt.Fprintln(t.Stderr, "warning:", noun+":", err)
 				}
 				for _, row := range rows {
-					out = append(out, ocli.Row{Noun: noun, ID: row.ID, Label: row.Label, Cells: row.Cells})
+					out = append(out, ocli.Row{Noun: noun, ID: row.ID, Label: row.Label, Data: row.Data, Cells: row.Cells})
 				}
 			}
 			rows, err := serverList(c)
@@ -464,7 +486,13 @@ func (t *Tool) shell() *ocli.Shell {
 			rows, err = exampleList("", "", "", stateExamples)
 			add(exampleNoun, rows, err)
 			return ochazuke.Done(out)
-		}, "every list's rows in one answer, JSON Lines {noun, id, label, cells} for "+strings.Join(rowNouns, ", ")+" (the newest examples only; the catalog's state)").State().Fetch()
+		}, "every list's rows in one answer, JSON Lines {noun, id, label, data, cells} for "+strings.Join(rowNouns, ", ")+" (the newest examples only; the catalog's state)").State().Fetch()
+
+	r.Define(serverNoun).Mode("normal").
+		Bind("g d", ochazuke.Do("mcp-server.discover")).
+		Bind("g r", ochazuke.Do("mcp-server.refresh"))
+	r.Define(exampleNoun).Mode("normal").
+		Bind("g a", ochazuke.Do("mcp-example.again"))
 
 	if err := ocli.DeclarePage(r, mcpPage()); err != nil {
 		panic(err)
@@ -495,11 +523,50 @@ func mcpPage() ocli.CatalogPage {
 		ID: "mcp", Title: "MCP", Layout: ocli.LayoutGroups,
 		Lists: []ocli.CatalogList{
 			{ID: "mcp-servers", Noun: serverNoun, Title: "Servers"},
-			{ID: "mcp-tools", Noun: toolNoun, Title: "Tools"},
-			{ID: "mcp-calls", Noun: callNoun, Title: "Calls"},
+			{ID: "mcp-tools", Noun: toolNoun, Title: "Tools (discover to populate)"},
+			{ID: "mcp-calls", Noun: callNoun, Title: "Calls (o-mcp's own)"},
 			{ID: "mcp-examples", Noun: exampleNoun, Title: "Examples"},
 		},
-		Detail: &ocli.CatalogDetail{},
+		Detail: &ocli.CatalogDetail{Sections: []ocli.CatalogDetailSection{
+			{Kind: "fields", Title: "Metadata", Fields: []ocli.CatalogDetailField{
+				{Label: "Harness", Field: "harness"},
+				{Label: "Server", Field: "server"},
+				{Label: "Tool", Field: "tool"},
+				{Label: "At", Field: "at", Format: "time"},
+				{Label: "Session", Field: "session"},
+				{Label: "Cwd", Field: "cwd", Format: "path"},
+				{Label: "Error result", Field: "isError"},
+				{Label: "Transcript", Field: "transcript", Format: "path"},
+				{Label: "ID", Field: "id"},
+				{Label: "Name", Field: "name"},
+				{Label: "Scope", Field: "scope"},
+				{Label: "Transport", Field: "transport"},
+				{Label: "Configured", Field: "configured"},
+				{Label: "Disabled", Field: "disabled"},
+				{Label: "Snapshot", Field: "snapshot"},
+				{Label: "Tools", Field: "tools"},
+				{Label: "Discovered", Field: "discoveredAt", Format: "time"},
+				{Label: "Auth", Field: "auth"},
+				{Label: "Login", Field: "login"},
+				{Label: "Config", Field: "config", Format: "path"},
+				{Label: "Command", Field: "command"},
+				{Label: "Args", Field: "args", Format: "list"},
+				{Label: "Environment names", Field: "env", Format: "list"},
+				{Label: "Header names", Field: "headers", Format: "list"},
+				{Label: "Bearer token variable", Field: "bearerTokenEnv"},
+				{Label: "Header variables", Field: "headerEnv", Format: "list"},
+				{Label: "URL", Field: "url"},
+				{Label: "Title", Field: "title"},
+				{Label: "Description", Field: "description"},
+				{Label: "Hints", Field: "hints", Format: "list"},
+				{Label: "Parameters", Field: "params", Format: "list"},
+				{Label: "Required", Field: "required", Format: "list"},
+				{Label: "Stale", Field: "stale"},
+				{Label: "Error", Field: "error"},
+				{Label: "Duration (ms)", Field: "durationMs"},
+			}},
+			{Kind: "markdown", Field: "payload"},
+		}},
 	}
 }
 

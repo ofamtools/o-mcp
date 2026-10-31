@@ -25,17 +25,35 @@ import (
 
 // Example is one observed call.
 type Example struct {
-	ID        string         `json:"id"` // HARNESS:CALL_ID
-	Harness   string         `json:"harness"`
-	Server    string         `json:"server"` // the server's name as the harness spelled it
-	Tool      string         `json:"tool"`
-	At        time.Time      `json:"at"`
-	Session   string         `json:"session,omitempty"`
-	Path      string         `json:"path"`
-	Cwd       string         `json:"cwd,omitempty"`
-	Arguments map[string]any `json:"arguments"`
-	IsError   bool           `json:"isError,omitempty"`
-	Result    string         `json:"result,omitempty"` // the start of the result's text
+	ID         string         `json:"id"` // HARNESS:CALL_ID
+	Harness    string         `json:"harness"`
+	Server     string         `json:"server"` // the server's name as the harness spelled it
+	Tool       string         `json:"tool"`
+	At         time.Time      `json:"at"`
+	Session    string         `json:"session,omitempty"`
+	Transcript string         `json:"transcript"`
+	Cwd        string         `json:"cwd,omitempty"`
+	Arguments  map[string]any `json:"arguments"`
+	IsError    bool           `json:"isError"`
+	Result     string         `json:"result,omitempty"` // the start of the result's text
+}
+
+// UnmarshalJSON accepts the old transcript field for one release. Only
+// transcript is written: a host interprets path as the record's project.
+func (e *Example) UnmarshalJSON(b []byte) error {
+	type plain Example
+	var record struct {
+		plain
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal(b, &record); err != nil {
+		return err
+	}
+	*e = Example(record.plain)
+	if e.Transcript == "" {
+		e.Transcript = record.Path
+	}
+	return nil
 }
 
 const resultPreview = 2048
@@ -123,7 +141,7 @@ func (t *Tool) Harvest(rescan bool) ([]Example, HarvestReport, error) {
 				ex = codexExamples(p)
 			}
 			for i := range ex {
-				ex[i].Path = t.tilde(p)
+				ex[i].Transcript = t.tilde(p)
 			}
 			next[p] = harvestFile{Size: info.Size(), ModTime: info.ModTime(), Examples: ex}
 		}
