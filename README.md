@@ -106,7 +106,7 @@ Every verb takes its thing as words (`mcp-tool show tuios tuios_list_windows`) o
 
 ## MCP page
 
-The catalog page carries each row's real data. Its detail shows metadata followed by pretty-printed Arguments and Result JSON blocks for examples and calls. A result that parses as JSON is expanded; prose or a truncated result is shown as a JSON string. These remain the existing redacted result previews (up to 2048 bytes), not full responses. Calls use their saved `preview` as the result. Ochazuke's shared `detail.sections` setting defaults to `true`; `false` restores the plain record detail. No new app setting is needed.
+The catalog page carries each row's real data. Its detail shows metadata followed by Request (`arguments`) and Response (`result`, parsed from its JSON string) sections for examples and calls. Each section shows a structure tree on the left and the selected node's pretty-printed data on the right; below 64 content cells they stack. Prose and truncated JSON fall back to complete plain text. Responses remain the existing redacted previews (up to 2048 bytes), not full responses. Call rows expose their saved `preview` as `result` too. Ochazuke's shared `detail.sections` setting defaults to `true`; `false` restores the plain record detail and removes JSON trees from focus order. No new app setting is needed.
 
 Tools reads saved snapshots offline. When empty: **no tools yet: run `mcp-server discover --all`**. Calls is **o-mcp's own calls; harvested examples are under Examples; `mcp-example again` re-runs one here**. The catalog currently has no empty-list text field, so the group labels carry short reminders and this section carries the full guidance.
 
@@ -122,9 +122,9 @@ Enter a group to focus its rows before using these bindings. They avoid the fram
 
 Example output now names the transcript file `transcript`, leaving `cwd` available for the host's project association. Legacy `path` is accepted on input, including existing harvest caches, for one release; output emits only `transcript` so the transcript cannot override the project directory.
 
-The structure/data split and bindings to open payloads in o-json still need the shared JSON section kind and host action support. This page uses the existing Markdown section kind until that library work ships.
+The JSON sections use ochazuke v0.79.0. Focus each tree with the shared window motions (`ctrl+w h/l`); standard tree motions and folding select the data. `J/K` scroll the selected value, `y` copies it completely, and `g v` opens it in a read-only text view. These keys come from the framework's binding rows. Opening payloads in o-json remains dependent on host action support.
 
-Compared with Vim: these three actions operate on MCP servers and recorded calls; there is no corresponding Vim action or `:help` tag (n/a). Existing list motion and detail scrolling retain the framework's Vim behavior.
+Compared with Vim: these three app actions operate on MCP servers and recorded calls; there is no corresponding Vim action or `:help` tag (n/a). The shared JSON trees use `h/l` to collapse/expand, similar to Vim's `zc`/`zo` (`:help zc`, `:help zo`); `ctrl+w h/l` follows drawing order, similar to Vim's window motions (`:help CTRL-W_h`, `:help CTRL-W_l`). The data follows the selected tree node; Vim windows have independent buffers and cursors.
 
 ## Package client
 

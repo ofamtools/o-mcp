@@ -17,49 +17,54 @@ import (
 )
 
 func TestMCPPagePayloads(t *testing.T) {
-	for _, tc := range []struct {
-		name, response string
-		want           any
-	}{
-		{"object", `{"values":[true,null,9007199254740993]}`, map[string]any{"values": []any{true, nil, json.Number("9007199254740993")}}},
-		{"prose", "message\n```\n## untrusted heading", "message\n```\n## untrusted heading"},
-		{"truncated", `{"unfinished":`, `{"unfinished":`},
-		{"empty", "", ""},
+	for _, response := range []string{
+		`{"values":[true,null,9007199254740993]}`,
+		"message\n```\n## untrusted heading",
+		`{"unfinished":`,
+		"",
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			arguments := map[string]any{"request": []any{"complete", true}}
-			for _, row := range []ListRow{
-				exampleRow(Example{Arguments: arguments, Result: tc.response}),
-				callRow(client.Call{Arguments: arguments, Preview: tc.response}),
-			} {
-				b, err := json.Marshal(row.Data)
-				if err != nil {
-					t.Fatal(err)
-				}
-				var data map[string]any
-				json.Unmarshal(b, &data)
-				payload, _ := data["payload"].(string)
-				blocks := strings.Split(payload, "```json\n")
-				if len(blocks) != 3 {
-					t.Fatalf("need two fenced JSON blocks: %q", payload)
-				}
-				for i, want := range []any{arguments, tc.want} {
-					body, rest, ok := strings.Cut(blocks[i+1], "\n```")
-					if !ok || strings.Contains(rest, "```") {
-						t.Fatalf("invalid or escaped fence: %q", payload)
-					}
-					var got any
-					decoder := json.NewDecoder(strings.NewReader(body))
-					decoder.UseNumber()
-					if err := decoder.Decode(&got); err != nil {
-						t.Fatal(err)
-					}
-					if !reflect.DeepEqual(got, want) {
-						t.Fatalf("block %d = %#v, want %#v", i, got, want)
-					}
-				}
+		arguments := map[string]any{"request": []any{"complete", true}}
+		for _, row := range []ListRow{
+			exampleRow(Example{Arguments: arguments, Result: response}),
+			callRow(client.Call{Arguments: arguments, Preview: response}),
+		} {
+			b, err := json.Marshal(row.Data)
+			if err != nil {
+				t.Fatal(err)
 			}
-		})
+			var data map[string]any
+			if err := json.Unmarshal(b, &data); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(data["arguments"], arguments) || (data["result"] != response && !(response == "" && data["result"] == nil)) {
+				t.Fatalf("row must carry unchanged request/response data: %s", b)
+			}
+			if _, ok := data["payload"]; ok {
+				t.Fatalf("row still carries the Markdown projection: %s", b)
+			}
+			if strings.HasPrefix(row.ID, callNoun+"/") && response != "" && data["preview"] != response {
+				t.Fatalf("call preview contract changed: %s", b)
+			}
+		}
+	}
+}
+
+func TestMCPPageJSONSections(t *testing.T) {
+	e := newEnv(t)
+	var doc ocli.CatalogDoc
+	if err := json.Unmarshal([]byte(e.ok("catalog")), &doc); err != nil {
+		t.Fatal(err)
+	}
+	sections := doc.Pages[0].Detail.Sections
+	if len(sections) != 3 || sections[0].Kind != "fields" {
+		t.Fatalf("metadata must precede two JSON sections: %+v", sections)
+	}
+	want := []ocli.CatalogDetailSection{
+		{Kind: "json", Title: "Request", Field: "arguments"},
+		{Kind: "json", Title: "Response", Field: "result", Parse: true},
+	}
+	if !reflect.DeepEqual(sections[1:], want) {
+		t.Fatalf("JSON sections = %+v, want %+v", sections[1:], want)
 	}
 }
 
@@ -105,74 +110,135 @@ func TestExampleTranscriptCompatibility(t *testing.T) {
 	}
 }
 
-func TestMCPPageStories(t *testing.T) {
+// mountedMCPPage exercises the same JSON wire shape a catalog host receives.
+func mountedMCPPage(t *testing.T, row ListRow, width, height int) *ochazuke.Model {
+	t.Helper()
 	e := newEnv(t)
 	var doc ocli.CatalogDoc
 	if err := json.Unmarshal([]byte(e.ok("catalog")), &doc); err != nil {
 		t.Fatal(err)
 	}
-	for _, width := range []int{150, 78} {
-		t.Run(strconv.Itoa(width), func(t *testing.T) {
-			r := ochazuke.NewRuntime()
-			r.Config().Disable()
-			m := ochazuke.NewModel(r)
-			m.Width, m.Height = width, 65
-			m.Appearance.Theme = "mono"
-			views, err := ocli.MountPages(m, doc, ocli.PageConfig{})
-			if err != nil || len(views) != 1 {
-				t.Fatalf("mount: %v, %v", views, err)
-			}
-			v := views[0]
-			row := exampleRow(Example{
-				ID: "fixture", Harness: "claude", Server: "fake", Tool: "echo",
-				At: time.Date(2026, 10, 31, 12, 0, 0, 0, time.UTC), Session: "session-fixture",
-				Cwd: "/project", Transcript: "~/sessions/fixture.jsonl",
-				Arguments: map[string]any{"nested": map[string]any{"text": "request-value"}},
-				Result:    `{"nested":{"text":"response-value","n":9007199254740993}}`,
+	r := ochazuke.NewRuntime()
+	r.Config().Disable()
+	m := ochazuke.NewModel(r)
+	m.Width, m.Height = width, height
+	m.Appearance.Theme = "mono"
+	views, err := ocli.MountPages(m, doc, ocli.PageConfig{})
+	if err != nil || len(views) != 1 {
+		t.Fatalf("mount: %v, %v", views, err)
+	}
+	wire, err := json.Marshal(row)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var selected ocli.Row
+	if err := json.Unmarshal(wire, &selected); err != nil {
+		t.Fatal(err)
+	}
+	selected.Noun, _, _ = strings.Cut(row.ID, "/")
+	v := views[0]
+	if err := v.SetState([]ocli.Row{selected}); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.OpenPage(v.Page()); err != nil {
+		t.Fatal(err)
+	}
+	list := "mcp-examples"
+	if selected.Noun == callNoun {
+		list = "mcp-calls"
+	}
+	if err := r.SetFocus(list + "/" + row.ID); err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
+
+func TestMCPPageStories(t *testing.T) {
+	arguments := map[string]any{"nested": map[string]any{"text": "request-value"}}
+	response := `{"nested":{"text":"response-value","n":9007199254740993}}`
+	at := time.Date(2026, 10, 31, 12, 0, 0, 0, time.UTC)
+	for _, row := range []ListRow{
+		exampleRow(Example{ID: "fixture", Harness: "claude", Server: "fake", Tool: "echo", At: at,
+			Session: "session-fixture", Cwd: "/project", Transcript: "~/sessions/fixture.jsonl",
+			Arguments: arguments, Result: response}),
+		callRow(client.Call{ID: "fixture", Server: "fake", Tool: "echo", At: at, Arguments: arguments, Preview: response}),
+	} {
+		for _, width := range []int{150, 78} {
+			t.Run(row.ID+"/"+strconv.Itoa(width), func(t *testing.T) {
+				m := mountedMCPPage(t, row, width, 65)
+				r := m.Runtime
+				frame := ansi.Strip(m.View().Content)
+				for _, want := range []string{"Metadata", "Request"} {
+					if !strings.Contains(frame, want) {
+						t.Fatalf("detail lacks %q:\n%s", want, frame)
+					}
+				}
+				if strings.HasPrefix(row.ID, exampleNoun+"/") {
+					for _, want := range []string{"session-fixture", "/project", "~/sessions/fixture.jsonl", "false"} {
+						if !strings.Contains(frame, want) {
+							t.Fatalf("example metadata lacks %q:\n%s", want, frame)
+						}
+					}
+				}
+				if strings.Index(frame, "Metadata") > strings.Index(frame, "Request") {
+					t.Fatal("metadata must precede the request/response")
+				}
+				for _, section := range []struct{ title, value string }{{"Request", "request-value"}, {"Response", "response-value"}} {
+					// Focus the tree and select its nested object using shared bindings.
+					for _, key := range []string{"ctrl+w", "l", "j"} {
+						m.Update(keytest.Msg(key, false, false))
+					}
+					frame = ansi.Strip(m.View().Content)
+					for _, want := range []string{section.title, "Structure", "Data · .nested", section.value} {
+						if !strings.Contains(frame, want) {
+							t.Fatalf("JSON detail lacks %q:\n%s", want, frame)
+						}
+					}
+					sideBySide := false
+					for _, line := range strings.Split(frame, "\n") {
+						if strings.Contains(line, "Structure") && strings.Contains(line, "Data ·") {
+							sideBySide = true
+						}
+					}
+					if sideBySide != (width == 150) {
+						t.Fatalf("structure/data layout at width %d:\n%s", width, frame)
+					}
+					if section.title == "Response" && !strings.Contains(frame, "9007199254740993") {
+						t.Fatalf("response number changed:\n%s", frame)
+					}
+				}
+				if _, err := r.Settings().SetSession("detail.sections", false); err != nil {
+					t.Fatal(err)
+				}
+				for _, key := range []string{"9", "9", "9", "K"} {
+					m.Update(keytest.Msg(key, false, false))
+				}
+				frame = ansi.Strip(m.View().Content)
+				if !strings.Contains(frame, "arguments") || strings.Contains(frame, "Structure") || strings.Contains(frame, "Metadata") {
+					t.Fatalf("legacy opt-out:\n%s", frame)
+				}
 			})
-			// A host sees the JSON wire shape, rather than Go structs.
-			wire, _ := json.Marshal(row)
-			var selected ocli.Row
-			json.Unmarshal(wire, &selected)
-			selected.Noun = exampleNoun
-			if err := v.SetState([]ocli.Row{selected}); err != nil {
-				t.Fatal(err)
-			}
-			if err := r.OpenPage(v.Page()); err != nil {
-				t.Fatal(err)
-			}
-			if err := r.SetFocus("mcp-examples/" + row.ID); err != nil {
-				t.Fatal(err)
-			}
+		}
+	}
+}
+
+func TestMCPPageResponseFallback(t *testing.T) {
+	for _, response := range []string{"prose first line\n```\n## untrusted heading", `{"unfinished":`, ""} {
+		for _, row := range []ListRow{
+			exampleRow(Example{ID: "fallback", Arguments: map[string]any{}, Result: response}),
+			callRow(client.Call{ID: "fallback", Arguments: map[string]any{}, Preview: response}),
+		} {
+			m := mountedMCPPage(t, row, 150, 150)
 			frame := ansi.Strip(m.View().Content)
-			for _, want := range []string{"Metadata", "session-fixture", "/project", "~/sessions/fixture.jsonl", "false", "Arguments"} {
-				if !strings.Contains(frame, want) {
-					t.Errorf("detail lacks %q:\n%s", want, frame)
+			if !strings.Contains(frame, "Response") {
+				t.Fatalf("missing response section:\n%s", frame)
+			}
+			for _, line := range strings.Split(response, "\n") {
+				if !strings.Contains(frame, line) {
+					t.Fatalf("fallback lacks %q:\n%s", line, frame)
 				}
 			}
-			if strings.Index(frame, "Metadata") > strings.Index(frame, "Arguments") {
-				t.Error("metadata must precede the request/response")
-			}
-			// Result is below the fold: the existing detail scroll must reach it.
-			for _, key := range []string{"9", "9", "9", "J"} {
-				m.Update(keytest.Msg(key, false, false))
-			}
-			frame = ansi.Strip(m.View().Content)
-			for _, want := range []string{"request-value", "Result", "response-value", "9007199254740993"} {
-				if !strings.Contains(frame, want) {
-					t.Errorf("scrolled detail lacks %q:\n%s", want, frame)
-				}
-			}
-			if _, err := r.Settings().SetSession("detail.sections", false); err != nil {
-				t.Fatal(err)
-			}
-			for _, key := range []string{"9", "9", "9", "K"} {
-				m.Update(keytest.Msg(key, false, false))
-			}
-			if frame := ansi.Strip(m.View().Content); !strings.Contains(frame, "arguments") || strings.Contains(frame, "Metadata") {
-				t.Fatalf("legacy opt-out:\n%s", frame)
-			}
-		})
+		}
 	}
 }
 

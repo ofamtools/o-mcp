@@ -61,10 +61,11 @@ func callRow(c client.Call) ListRow {
 	if c.IsError || c.Error != "" {
 		label += ", error"
 	}
+	// Share the response section with examples while retaining preview on the wire.
 	data := struct {
 		client.Call
-		Payload string `json:"payload"`
-	}{c, payloadMarkdown(c.Arguments, c.Preview)}
+		Result string `json:"result"`
+	}{c, c.Preview}
 	return ListRow{ID: callNoun + "/" + c.ID, Label: label, Data: data, Cells: tables[callNoun].cells(c)}
 }
 
@@ -73,25 +74,7 @@ func exampleRow(e Example) ListRow {
 	if e.IsError {
 		label += ", error"
 	}
-	data := struct {
-		Example
-		Payload string `json:"payload"`
-	}{e, payloadMarkdown(e.Arguments, e.Result)}
-	return ListRow{ID: exampleNoun + "/" + e.ID, Label: label, Data: data, Cells: tables[exampleNoun].cells(e)}
-}
-
-// TODO: replace this Markdown projection with arguments/result sections of
-// kind "json" when ochazuke ships that kind (including structure/data panes).
-// RawMessage preserves JSON numbers; prose and truncated results stay valid
-// JSON strings, so transcript text cannot escape the code fence.
-func payloadMarkdown(arguments map[string]any, response string) string {
-	args, _ := json.MarshalIndent(arguments, "", "  ")
-	var value any = response
-	if json.Valid([]byte(response)) {
-		value = json.RawMessage(response)
-	}
-	res, _ := json.MarshalIndent(value, "", "  ")
-	return "## Arguments\n\n```json\n" + string(args) + "\n```\n\n## Result\n\n```json\n" + string(res) + "\n```"
+	return ListRow{ID: exampleNoun + "/" + e.ID, Label: label, Data: e, Cells: tables[exampleNoun].cells(e)}
 }
 
 // thing is the id a verb acts on: the positional or flag argument name,
@@ -399,7 +382,7 @@ func (t *Tool) shell() *ocli.Shell {
 	r.Define(callNoun).Columns(tables[callNoun].columns...).
 		Verb("list", func(c ochazuke.Ctx) ochazuke.Result {
 			return result(callList(ochazuke.StringArg(c.Args, "server", ""), ochazuke.StringArg(c.Args, "tool", ""), ochazuke.IntArg(c.Args, "limit", 0)))
-		}, "o-mcp's call history, newest first: {id, label, data: {at, server, tool, arguments (secret-looking values redacted), isError, durationMs, preview}, cells}").Positional("server", "tool").Rows(callNoun).Fetch().
+		}, "o-mcp's call history, newest first: {id, label, data: {at, server, tool, arguments (secret-looking values redacted), isError, durationMs, preview, result (the same saved preview)}, cells}").Positional("server", "tool").Rows(callNoun).Fetch().
 		Verb("show", func(c ochazuke.Ctx) ochazuke.Result {
 			return result(findCall(thing(c, callNoun, "call")))
 		}, "one recorded call").Positional("call").Fetch().
@@ -565,7 +548,8 @@ func mcpPage() ocli.CatalogPage {
 				{Label: "Error", Field: "error"},
 				{Label: "Duration (ms)", Field: "durationMs"},
 			}},
-			{Kind: "markdown", Field: "payload"},
+			{Kind: "json", Title: "Request", Field: "arguments"},
+			{Kind: "json", Title: "Response", Field: "result", Parse: true},
 		}},
 	}
 }
