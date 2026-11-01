@@ -17,6 +17,7 @@ o-mcp (`o mcp` under [oden](https://github.com/ofamtools/oden)'s `o`, or `o-mcp`
 Module `ofam.dev/o-mcp`; requires Go 1.27 or newer.
 
 ```sh
+go install ofam.dev/oden/cmd/o@latest   # oden's o: o mcp runs o-mcp, no dash needed
 go install ofam.dev/o-mcp@latest
 ```
 
@@ -63,7 +64,7 @@ $ o mcp call slack search_messages query='deploy' count=20
 
 ### The configured inventory
 
-`configured` lists every server Claude, Codex, omp, OpenCode, Gemini and clawed configure for the current directory (user, local and project scopes), exactly as `o-ai mcp list` sees them, plus saved servers whose configuration is gone. Disabled entries are listed; `discover --all` skips them and `discover`, `test` and `call` refuse them. Nothing here connects.
+`configured` lists every server Claude, Codex, omp, OpenCode, Gemini and clawed configure for the current directory (user, local and project scopes), exactly as `o ai mcp list` sees them, plus saved servers whose configuration is gone. Disabled entries are listed; `discover --all` skips them and `discover`, `test` and `call` refuse them. Nothing here connects.
 
 ### Snapshots
 
@@ -77,9 +78,9 @@ Credentials come only from the server's own configuration, resolved when o-mcp c
 
 A remote server whose config gives no `Authorization` header and no bearer-token variable may ask for an OAuth sign-in instead (a gateway such as Runlayer does). Then `configured` shows `needs sign-in` once a connect has met it, and `test`, `discover` and `call` fail with `needs sign-in`, never `unreachable`, naming the command: `o-mcp login SERVER`.
 
-`o-mcp login SERVER` runs the MCP authorization flow (OAuth 2.1). It asks the server without a token and reads its 401 `WWW-Authenticate` challenge. It fetches the protected-resource metadata (the challenge's `resource_metadata`, else the well-known URLs) and then the authorization server's metadata. It registers a client: the config entry's `oauth.clientId` when set (Claude Code's spelling; `oauth.scopes` and `oauth.callbackPort` are read too), else dynamic client registration; without either it says to set `oauth.clientId`. It then opens the browser with `open`, printing the URL as a fallback, for the authorization-code flow with PKCE (S256) and a redirect to `127.0.0.1` on a random port. It exchanges the code, stores the tokens, and connects once to check. It is the only command that opens a browser: `call`, `discover`, `test`, the batch and every tool on package `client` (o-slack's scheduled poll) fail with the hint instead, so a schedule never pops a window. `--force` signs in again when already signed in.
+`o mcp login SERVER` runs the MCP authorization flow (OAuth 2.1). It asks the server without a token and reads its 401 `WWW-Authenticate` challenge. It fetches the protected-resource metadata (the challenge's `resource_metadata`, else the well-known URLs) and then the authorization server's metadata. It registers a client: the config entry's `oauth.clientId` when set (Claude Code's spelling; `oauth.scopes` and `oauth.callbackPort` are read too), else dynamic client registration; without either it says to set `oauth.clientId`. It then opens the browser with `open`, printing the URL as a fallback, for the authorization-code flow with PKCE (S256) and a redirect to `127.0.0.1` on a random port. It exchanges the code, stores the tokens, and connects once to check. It is the only command that opens a browser: `call`, `discover`, `test`, the batch and every tool on package `client` (o-slack's scheduled poll) fail with the hint instead, so a schedule never pops a window. `--force` signs in again when already signed in.
 
-Every connect then sends the stored token. It refreshes the token a minute before it expires, and once when the server answers 401. If the refresh fails, the error says `sign in again: o-mcp login SERVER`. `o-mcp logout SERVER` revokes the tokens when the authorization server offers revocation and deletes them. `o-mcp auth status [SERVER]` shows the state (`signed-in`, `needs-sign-in`, `signed-out`), issuer, scopes, expiry and whether a refresh token is stored. It never shows a token.
+Every connect then sends the stored token. It refreshes the token a minute before it expires, and once when the server answers 401. If the refresh fails, the error says `sign in again: o-mcp login SERVER`. `o mcp logout SERVER` revokes the tokens when the authorization server offers revocation and deletes them. `o mcp auth status [SERVER]` shows the state (`signed-in`, `needs-sign-in`, `signed-out`), issuer, scopes, expiry and whether a refresh token is stored. It never shows a token.
 
 Where things live:
 
@@ -146,7 +147,7 @@ Sign-in: `Connect` uses the stored tokens transparently and refreshes them. `Log
 
 - **o-ai** owns reading the harnesses' configuration (package `harness`); o-mcp adds connecting, which o-ai never does.
 - **mtm and nabe** mount `o-mcp catalog` as the MCP page: servers, tools, calls and examples in a groups rail, the selected row's record beside them. The extension namespace is `mcp`.
-- **o-slack** reads Slack through `client`: a gateway entry with a header or bearer-token variable, or one signed in with `o-mcp login` (Runlayer). Its poll never opens a browser; it names the login command instead.
+- **o-slack** reads Slack through `client`: a gateway entry with a header or bearer-token variable, or one signed in with `o mcp login` (Runlayer). Its poll never opens a browser; it names the login command instead.
 
 ## Logo
 
