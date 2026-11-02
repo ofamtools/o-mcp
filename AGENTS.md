@@ -1,10 +1,10 @@
 # o-mcp: agent guide
 
-The family's MCP tool (`o-mcp`, so `o mcp`), a Go recreation of `~/bin/h-mcp` (design: `~/bin/h-mcp.md`; plan: `~/hub/o-plans/plans/inbox-and-signals.md`). An oden app with an ochazuke runtime behind `ochazuke/cli`, plus package `client`, the in-process API other tools (o-slack) import.
+The family's MCP tool (`o-mcp`, so `o mcp`), a Go recreation of `~/bin/h-mcp`. An oden app with an ochazuke runtime behind `ochazuke/cli`, plus package `client`, the in-process API other tools (o-slack) import.
 
 ## Plans and todos
 
-Family plans, todos and the roadmap live in `~/hub/o-plans/` (`README.md` is the index). Do not add a TODO.md or docs/plans/ to this repo.
+Keep planning work in the family planning workspace, separate from this repository. Do not add a TODO.md or docs/plans/ to this repo.
 
 ## Where does X live
 
