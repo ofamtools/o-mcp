@@ -311,7 +311,7 @@ func TestOAuthAppliesOnlyWithoutAConfiguredCredential(t *testing.T) {
 }
 
 func TestKeychainAccountAndArgs(t *testing.T) {
-	if got := keychainAccount("claude:user:runlayer", "https://auth.example.com"); got != "claude:user:runlayer|https://auth.example.com" {
+	if got := keychainAccount("claude:user:acme", "https://auth.example.com"); got != "claude:user:acme|https://auth.example.com" {
 		t.Fatalf("account = %s", got)
 	}
 	if got := keychainAccount("a b|c", `x"y`); got != "a%20b%7Cc|x%22y" {

@@ -76,7 +76,7 @@ Credentials come only from the server's own configuration, resolved when o-mcp c
 
 ### Sign-in (OAuth)
 
-A remote server whose config gives no `Authorization` header and no bearer-token variable may ask for an OAuth sign-in instead (a gateway such as Runlayer does). Then `configured` shows `needs sign-in` once a connect has met it, and `test`, `discover` and `call` fail with `needs sign-in`, never `unreachable`, naming the command: `o-mcp login SERVER`.
+A remote server whose config gives no `Authorization` header and no bearer-token variable may ask for an OAuth sign-in instead (some remote MCP servers do). Then `configured` shows `needs sign-in` once a connect has met it, and `test`, `discover` and `call` fail with `needs sign-in`, never `unreachable`, naming the command: `o-mcp login SERVER`.
 
 `o mcp login SERVER` runs the MCP authorization flow (OAuth 2.1). It asks the server without a token and reads its 401 `WWW-Authenticate` challenge. It fetches the protected-resource metadata (the challenge's `resource_metadata`, else the well-known URLs) and then the authorization server's metadata. It registers a client: the config entry's `oauth.clientId` when set (Claude Code's spelling; `oauth.scopes` and `oauth.callbackPort` are read too), else dynamic client registration; without either it says to set `oauth.clientId`. It then opens the browser with `open`, printing the URL as a fallback, for the authorization-code flow with PKCE (S256) and a redirect to `127.0.0.1` on a random port. It exchanges the code, stores the tokens, and connects once to check. It is the only command that opens a browser: `call`, `discover`, `test`, the batch and every tool on package `client` (o-slack's scheduled poll) fail with the hint instead, so a schedule never pops a window. `--force` signs in again when already signed in.
 
@@ -84,7 +84,7 @@ Every connect then sends the stored token. It refreshes the token a minute befor
 
 Where things live:
 
-- **Tokens:** only in the macOS login Keychain, as generic passwords with service `o-mcp` and account `SERVER_ID|ISSUER` (for example `claude:user:runlayer|https://auth.example.com`). One item holds the access and refresh tokens, the client id and secret, and the token and revocation endpoints. o-mcp drives `/usr/bin/security` (no cgo): writes go to `security -i` on stdin, so a token never appears on a command line, and a long item is split over `ACCOUNT`, `ACCOUNT#2`, and so on. On another OS sign-in fails rather than store tokens elsewhere.
+- **Tokens:** only in the macOS login Keychain, as generic passwords with service `o-mcp` and account `SERVER_ID|ISSUER` (for example `claude:user:acme|https://auth.example.com`). One item holds the access and refresh tokens, the client id and secret, and the token and revocation endpoints. o-mcp drives `/usr/bin/security` (no cgo): writes go to `security -i` on stdin, so a token never appears on a command line, and a long item is split over `ACCOUNT`, `ACCOUNT#2`, and so on. On another OS sign-in fails rather than store tokens elsewhere.
 - **The record:** `auth/` in the data directory, one file per server. It holds the state, issuer, scopes, expiry and the Keychain account, and no token. `configured` reads only these files, never the Keychain.
 
 Tokens never go in a file, the catalog, the call history or JSON output, and the auth errors are redacted.
@@ -147,7 +147,7 @@ Sign-in: `Connect` uses the stored tokens transparently and refreshes them. `Log
 
 - **o-ai** owns reading the harnesses' configuration (package `harness`); o-mcp adds connecting, which o-ai never does.
 - **mtm and nabe** mount `o-mcp catalog` as the MCP page: servers, tools, calls and examples in a groups rail, the selected row's record beside them. The extension namespace is `mcp`.
-- **o-slack** reads Slack through `client`: a gateway entry with a header or bearer-token variable, or one signed in with `o mcp login` (Runlayer). Its poll never opens a browser; it names the login command instead.
+- **o-slack** reads Slack through `client`: an MCP server entry with a header or bearer-token variable, or one signed in with `o mcp login`. Its poll never opens a browser; it names the login command instead.
 
 ## Logo
 
