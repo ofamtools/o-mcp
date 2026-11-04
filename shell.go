@@ -279,7 +279,7 @@ func (t *Tool) shell() *ocli.Shell {
 				return ochazuke.Failed(err)
 			}
 			return result(map[string]any{"forgot": snap.Server.ID, "tools": len(snap.Tools)}, t.store().Remove(snap.Server.ID))
-		}, "delete the server's saved snapshot (never its configuration; discover saves it again)").Positional("server").Confirm("Forget the saved tools of {{id}}?").
+		}, "delete the server's saved snapshot (never its configuration; discover saves it again)").Positional("server").Confirm("Forget the saved tools of {{id}}?").Agent(ochazuke.AgentAllow).
 		Verb("copy-id", func(c ochazuke.Ctx) ochazuke.Result {
 			s, err := t.server(thing(c, serverNoun, "server"))
 			if err != nil {
