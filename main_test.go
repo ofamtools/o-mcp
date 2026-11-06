@@ -316,3 +316,16 @@ func TestStateCarriesEveryNoun(t *testing.T) {
 		t.Fatalf("state nouns = %v", seen)
 	}
 }
+
+// The list nouns are thing nouns over their list: get reads one row by its
+// id, and a core verb the tool does not do (set) is unavailable.
+func TestListNounsAreThingNouns(t *testing.T) {
+	e := newEnv(t)
+	var got map[string]any
+	if err := json.Unmarshal([]byte(e.ok("mcp-server", "get", "mcp-server/codex:user:remote")), &got); err != nil || got["id"] != "mcp-server/codex:user:remote" || got["label"] == "" {
+		t.Fatalf("mcp-server get: %v %v", err, got)
+	}
+	if _, _, code := e.run("", "mcp-server", "set", "mcp-server/codex:user:remote"); code == 0 {
+		t.Fatal("mcp-server set ran on a read-only noun")
+	}
+}

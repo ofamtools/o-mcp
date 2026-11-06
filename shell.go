@@ -471,6 +471,20 @@ func (t *Tool) shell() *ocli.Shell {
 			return ochazuke.Done(out)
 		}, "every list's rows in one answer, JSON Lines {noun, id, label, data, cells} for "+strings.Join(rowNouns, ", ")+" (the newest examples only; the catalog's state)").State().Fetch()
 
+	// Each list noun is a thing noun over its list verb (thing_store.go).
+	defineListStores(r, []listStore{
+		{Noun: serverNoun, List: func(c ochazuke.Ctx) ochazuke.Result { return result(serverList(c)) }},
+		{Noun: toolNoun, List: func(c ochazuke.Ctx) ochazuke.Result {
+			return result(toolList(ochazuke.StringArg(c.Args, "server", "")))
+		}},
+		{Noun: callNoun, List: func(c ochazuke.Ctx) ochazuke.Result {
+			return result(callList(ochazuke.StringArg(c.Args, "server", ""), ochazuke.StringArg(c.Args, "tool", ""), ochazuke.IntArg(c.Args, "limit", 0)))
+		}},
+		{Noun: exampleNoun, List: func(c ochazuke.Ctx) ochazuke.Result {
+			return result(exampleList(ochazuke.StringArg(c.Args, "server", ""), ochazuke.StringArg(c.Args, "tool", ""), ochazuke.StringArg(c.Args, "harness", ""), ochazuke.IntArg(c.Args, "limit", 200)))
+		}},
+	})
+
 	r.Define(serverNoun).Mode("normal").
 		Bind("g d", ochazuke.Do("mcp-server.discover")).
 		Bind("g r", ochazuke.Do("mcp-server.refresh"))
