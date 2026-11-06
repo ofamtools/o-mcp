@@ -1,0 +1,12 @@
+# namecheck baseline: file, function, kind, literal, count, reason (tab separated).
+# A row with a reason is a legitimate use that stays. A row without one is debt that may only shrink:
+# NAMECHECK_UPDATE=1 removes rows and lowers counts, never adds them. Adding a row is a reviewed edit.
+commands.go	Tool.commands	compare	"status"	1
+commands.go	Tool.parseCall	case	"args"	1
+ops.go	filterServers	case	"all"	1
+shell.go	Tool.shell	cyclo	"-"	55
+shell.go	toolRef	compare	"mcp-tool"	1
+table.go	var tables	table	"mcp-call"	1
+table.go	var tables	table	"mcp-example"	1
+table.go	var tables	table	"mcp-server"	1
+table.go	var tables	table	"mcp-tool"	1
