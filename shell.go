@@ -471,8 +471,8 @@ func (t *Tool) shell() *ocli.Shell {
 			return ochazuke.Done(out)
 		}, "every list's rows in one answer, JSON Lines {noun, id, label, data, cells} for "+strings.Join(rowNouns, ", ")+" (the newest examples only; the catalog's state)").State().Fetch()
 
-	// Each list noun is a thing noun over its list verb (thing_store.go).
-	defineListStores(r, []listStore{
+	// Each list noun is a thing noun over its list verb (Runtime.DefineListFacts).
+	r.DefineListFacts([]ochazuke.ListFacts{
 		{Noun: serverNoun, List: func(c ochazuke.Ctx) ochazuke.Result { return result(serverList(c)) }},
 		{Noun: toolNoun, List: func(c ochazuke.Ctx) ochazuke.Result {
 			return result(toolList(ochazuke.StringArg(c.Args, "server", "")))
@@ -483,7 +483,7 @@ func (t *Tool) shell() *ocli.Shell {
 		{Noun: exampleNoun, List: func(c ochazuke.Ctx) ochazuke.Result {
 			return result(exampleList(ochazuke.StringArg(c.Args, "server", ""), ochazuke.StringArg(c.Args, "tool", ""), ochazuke.StringArg(c.Args, "harness", ""), ochazuke.IntArg(c.Args, "limit", 200)))
 		}},
-	})
+	}...)
 
 	r.Define(serverNoun).Mode("normal").
 		Bind("g d", ochazuke.Do("mcp-server.discover")).
