@@ -7,7 +7,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	golang.org/x/oauth2 v0.35.0
 	ofam.dev/o-ai v0.1.0
-	ofam.dev/ochazuke v0.93.1
+	ofam.dev/ochazuke v0.94.0
 	ofam.dev/oden v0.2.0
 )
 
