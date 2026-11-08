@@ -615,12 +615,12 @@ func (t *Tool) copy(text string) map[string]any {
 }
 
 func params(r *ochazuke.Runtime, key string, ps map[string]ochazuke.Parameter) {
-	op, ok := r.Operations[key]
+	op, ok := r.Operations.Find(ochazuke.Key(key))
 	if !ok {
 		panic("params: no operation " + key)
 	}
 	op.Parameters = ps
-	r.Operations[key] = op
+	r.Operations.Set(op)
 }
 
 func merged(ms ...map[string]ochazuke.Parameter) map[string]ochazuke.Parameter {
@@ -638,11 +638,11 @@ func merged(ms ...map[string]ochazuke.Parameter) map[string]ochazuke.Parameter {
 // here. An unknown key panics.
 func setHistory(r *ochazuke.Runtime, kind string, keys ...string) {
 	for _, key := range keys {
-		op, ok := r.Operations[key]
+		op, ok := r.Operations.Find(ochazuke.Key(key))
 		if !ok {
 			panic("setHistory: no operation " + key)
 		}
 		op.HistoryKind = kind
-		r.Operations[key] = op
+		r.Operations.Set(op)
 	}
 }
