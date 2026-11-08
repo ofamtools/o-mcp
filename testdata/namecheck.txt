@@ -7,6 +7,6 @@ ops.go	filterServers	case	"all"	1
 shell.go	Tool.shell	cyclo	"-"	55
 shell.go	toolRef	compare	"mcp-tool"	1
 table.go	var tables	table	"mcp-call"	1
-table.go	var tables	table	"mcp-example"	1
+table.go	var tables	table	"example"	1
 table.go	var tables	table	"mcp-server"	1
 table.go	var tables	table	"mcp-tool"	1

@@ -162,7 +162,7 @@ func (s Server) oauthSettings() oauthSettings {
 type AuthRecord struct {
 	Server       string     `json:"server"`
 	Name         string     `json:"name"`
-	State        string     `json:"state"` // signed-in, needs-sign-in
+	Status       string     `json:"status"` // signed-in, needs-sign-in
 	Reason       string     `json:"reason,omitempty"`
 	Resource     string     `json:"resource,omitempty"`
 	Issuer       string     `json:"issuer,omitempty"`
@@ -171,6 +171,25 @@ type AuthRecord struct {
 	Expiry       *time.Time `json:"expiry,omitempty"`
 	Registration string     `json:"registration,omitempty"` // dynamic or configured (oauth.clientId)
 	UpdatedAt    time.Time  `json:"updatedAt"`
+}
+
+// UnmarshalJSON reads a record; one an older o-mcp wrote says "state" for
+// what is now "status" (the lexicon: state is a status) and reads as
+// status. The next write says status.
+func (r *AuthRecord) UnmarshalJSON(b []byte) error {
+	type plain AuthRecord
+	x := struct {
+		plain
+		State string `json:"state"`
+	}{}
+	if err := json.Unmarshal(b, &x); err != nil {
+		return err
+	}
+	*r = AuthRecord(x.plain)
+	if r.Status == "" {
+		r.Status = x.State
+	}
+	return nil
 }
 
 // credential is the Keychain item: everything a refresh needs.
@@ -275,7 +294,7 @@ func AuthState(s Server, o Options) string {
 	}
 	o = o.withDefaults()
 	if r, ok := loadRecord(o, s.ID); ok {
-		return r.State
+		return r.Status
 	}
 	return SignedOut
 }
@@ -284,7 +303,7 @@ func AuthState(s Server, o Options) string {
 type AuthStatus struct {
 	Server       string     `json:"server"`
 	Name         string     `json:"name"`
-	State        string     `json:"state"` // signed-in, needs-sign-in, signed-out
+	Status       string     `json:"status"` // signed-in, needs-sign-in, signed-out
 	SignedIn     bool       `json:"signedIn"`
 	Reason       string     `json:"reason,omitempty"`
 	Issuer       string     `json:"issuer,omitempty"`
@@ -301,33 +320,33 @@ type AuthStatus struct {
 // Keychain item (read, never printed).
 func Status(s Server, o Options) AuthStatus {
 	o = o.withDefaults()
-	st := AuthStatus{Server: s.ID, Name: s.Name, State: SignedOut}
+	st := AuthStatus{Server: s.ID, Name: s.Name, Status: SignedOut}
 	if st.Name == "" {
 		st.Name = s.ID
 	}
 	r, ok := loadRecord(o, s.ID)
 	if ok {
-		st.State, st.Reason, st.Issuer, st.Scopes, st.Expiry, st.Registration = r.State, r.Reason, r.Issuer, r.Scopes, r.Expiry, r.Registration
+		st.Status, st.Reason, st.Issuer, st.Scopes, st.Expiry, st.Registration = r.Status, r.Reason, r.Issuer, r.Scopes, r.Expiry, r.Registration
 		if r.Account != "" {
 			st.Keychain = "service " + KeychainService + ", account " + r.Account
 		}
 	}
-	if st.State == SignedIn {
+	if st.Status == SignedIn {
 		cred, err := loadCredential(o, r.Account)
 		switch {
 		case err != nil:
-			st.State, st.Reason = NeedsSignIn, redact(err.Error(), nil)
+			st.Status, st.Reason = NeedsSignIn, redact(err.Error(), nil)
 		default:
 			st.Refreshable = cred.RefreshToken != ""
 			if !cred.Expiry.IsZero() && !o.now().Before(cred.Expiry) {
 				st.Expired = true
 				if !st.Refreshable {
-					st.State, st.Reason = NeedsSignIn, "the token expired and no refresh token is stored"
+					st.Status, st.Reason = NeedsSignIn, "the token expired and no refresh token is stored"
 				}
 			}
 		}
 	}
-	st.SignedIn = st.State == SignedIn
+	st.SignedIn = st.Status == SignedIn
 	if !st.SignedIn {
 		st.Login = LoginCommand(st.Name)
 	}
@@ -400,7 +419,7 @@ func (h *oauthHandler) loadLocked() {
 	}
 	h.loaded = true
 	r, ok := loadRecord(h.o, h.s.ID)
-	if !ok || r.State != SignedIn {
+	if !ok || r.Status != SignedIn {
 		return
 	}
 	h.rec = r
@@ -491,7 +510,7 @@ func (h *oauthHandler) result(code int) *NeedsLoginError {
 		return h.needs
 	}
 	if code == http.StatusUnauthorized {
-		return needsLogin(h.s, "the server answered 401", h.rec.State == SignedIn)
+		return needsLogin(h.s, "the server answered 401", h.rec.Status == SignedIn)
 	}
 	return nil
 }
@@ -521,7 +540,7 @@ func markNeedsLogin(o Options, s Server, n *NeedsLoginError) {
 	if !ok {
 		r = AuthRecord{Server: s.ID, Name: s.Name}
 	}
-	r.State, r.Reason = NeedsSignIn, n.Reason
+	r.Status, r.Reason = NeedsSignIn, n.Reason
 	_ = saveRecord(o, r)
 }
 
@@ -779,7 +798,7 @@ func signIn(ctx context.Context, hc *http.Client, s Server, o Options, endpoint 
 		cred.Scopes = strings.Fields(sc)
 	}
 	rec := AuthRecord{
-		Server: s.ID, Name: s.Name, State: SignedIn, Resource: prm.Resource, Issuer: asm.Issuer,
+		Server: s.ID, Name: s.Name, Status: SignedIn, Resource: prm.Resource, Issuer: asm.Issuer,
 		Account: keychainAccount(s.ID, asm.Issuer), Scopes: cred.Scopes, Expiry: expiryOf(cred), Registration: registration,
 	}
 	return cred, rec, nil

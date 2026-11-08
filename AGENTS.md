@@ -12,7 +12,7 @@ Keep planning work in the family planning workspace, separate from this reposito
 |---|---|
 | `Tool`, `main`, the oden app, paths (data, cache) | `main.go` |
 | The top-level commands: `call` (its own parsing, stdin, exit 1 on a tool error) and the forwards to runtime verbs | `commands.go` |
-| The runtime: nouns `mcp-server`, `mcp-tool`, `mcp-call`, `mcp-example`, `status state`, the MCP page, Reveal, clipboard | `shell.go` |
+| The runtime: nouns `mcp-server`, `mcp-tool`, `mcp-call`, `example`, `mcp-server lists`, the MCP page, Reveal, clipboard | `shell.go` |
 | The operations behind the verbs (server rows, discover, call, tool detail) | `ops.go` |
 | Columns and cells per noun | `table.go` |
 | Session-log harvest (Claude, Codex) and its cache | `examples.go` |

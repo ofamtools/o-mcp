@@ -1,0 +1,19 @@
+kind	old	new	note
+noun	mcp.mcp-example	mcp.example	the mcp- prefix is dropped for the example noun; CLI `o-mcp example list|show|harvest|again|yank-command`; row ids example/HARNESS:CALL_ID (were mcp-example/...); binding context mcp-example/normal is example/normal; the other nouns mcp-server, mcp-tool, mcp-call keep their names
+noun	mcp.status	(removed)	the status noun held only the state source; the verb moved to mcp-server
+verb	mcp.status.state	mcp.mcp-server.lists	every list's rows (the catalog's state source, Result lists); the oden shortcut `o-mcp state` is `o-mcp lists`. A host finds it by Result, not by name
+verb	mcp.mcp-server.copy-id	mcp.mcp-server.yank-id	clipboard copy is yank
+verb	mcp.mcp-server.copy-address	mcp.mcp-server.yank-address	clipboard copy is yank
+verb	mcp.mcp-tool.copy-schema	mcp.mcp-tool.yank-schema	clipboard copy is yank
+verb	mcp.mcp-tool.copy-command	mcp.mcp-tool.yank-command	clipboard copy is yank
+verb	mcp.mcp-call.copy-command	mcp.mcp-call.yank-command	clipboard copy is yank
+verb	mcp.mcp-example.copy-command	mcp.example.yank-command	clipboard copy is yank
+parameter	mcp-server list --state / configured --state	--status	filter by enabled, disabled, saved, stale, unsaved, signed-in, needs-sign-in
+json-key	auth record file (auth/<server>.json): state	status	an older record is read as status (AuthRecord.UnmarshalJSON) and written back as status; test TestOlderAuthRecordStateKeyReadsAsStatus
+json-key	auth-status answer: state	status	AuthStatus.State is Status
+column	mcp-server list column state	status	
+noun	mcp.mcp-server (main)	mcp.mcp-server	unchanged; declared the main noun (`o-mcp list` is `mcp-server list`)
+kept	mcp.mcp-server.auth-status	mcp.mcp-server.auth-status	a verb: it takes an optional server (all OAuth servers when omitted), so it is a query with an argument, not one thing's value
+go	ochazuke.List	ochazuke.Collection	framework v0.104.0 (not used here)
+lexiconcheck	namespace-word mcp	(baseline row)	the program's namespace mcp is also the noun of the framework's ochazuke.mcp; needs the framework noun or the namespace renamed (owner decision)
+lexiconcheck	words example, yank-address, yank-command, yank-schema	testdata/lexicon-words.tsv	four local rows added (not in the family list yet)

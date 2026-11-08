@@ -33,7 +33,7 @@ ochazuke (`v0.24.0`), oden (`v0.1.1`) and the go-sdk (`v1.6.1`) are required at 
 ## Usage
 
 ```sh
-o mcp configured [--harness H] [--state all|enabled|disabled|saved|stale|unsaved]
+o mcp configured [--harness H] [--status all|enabled|disabled|saved|stale|unsaved]
 o mcp discover SERVER | --all      # connect, list every page of tools, save them
 o mcp refresh [SERVER]             # discover the saved servers again
 o mcp test SERVER                  # initialize only; calls nothing
@@ -46,7 +46,7 @@ o mcp call SERVER TOOL [KEY=VALUE...] [--data JSON | --args-file FILE|-] [--extr
 o mcp harvest [--rescan]           # read Claude and Codex session logs for MCP calls
 o mcp examples [SERVER [TOOL]]     # those calls, newest first
 o mcp calls [SERVER [TOOL]]        # o-mcp's own call history
-o mcp state                        # every list's rows as JSON Lines
+o mcp lists                        # every list's rows as JSON Lines (the catalog's state source)
 o mcp catalog                      # the nouns and verbs, for a host
 ```
 
@@ -85,31 +85,30 @@ Every connect then sends the stored token. It refreshes the token a minute befor
 Where things live:
 
 - **Tokens:** only in the macOS login Keychain, as generic passwords with service `o-mcp` and account `SERVER_ID|ISSUER` (for example `claude:user:acme|https://auth.example.com`). One item holds the access and refresh tokens, the client id and secret, and the token and revocation endpoints. o-mcp drives `/usr/bin/security` (no cgo): writes go to `security -i` on stdin, so a token never appears on a command line, and a long item is split over `ACCOUNT`, `ACCOUNT#2`, and so on. On another OS sign-in fails rather than store tokens elsewhere.
-- **The record:** `auth/` in the data directory, one file per server. It holds the state, issuer, scopes, expiry and the Keychain account, and no token. `configured` reads only these files, never the Keychain.
+- **The record:** `auth/` in the data directory, one file per server. It holds the status, issuer, scopes, expiry and the Keychain account, and no token. `configured` reads only these files, never the Keychain.
 
 Tokens never go in a file, the catalog, the call history or JSON output, and the auth errors are redacted.
 
 ### Examples
 
-`harvest` reads `~/.claude/projects/**/*.jsonl` (tool_use blocks named `mcp__SERVER__TOOL`, joined to their tool_result) and `~/.codex/sessions` and `archived_sessions` (`McpToolCall` items and older `mcp_tool_call_end` events) and caches each file's calls by size and modification time in `~/.cache/o-mcp/examples.json`, so a second harvest reads only what changed. Every list of examples harvests first. Examples never connect; `mcp-example again` makes the same call through o-mcp (refused when the recorded arguments were redacted).
+`harvest` reads `~/.claude/projects/**/*.jsonl` (tool_use blocks named `mcp__SERVER__TOOL`, joined to their tool_result) and `~/.codex/sessions` and `archived_sessions` (`McpToolCall` items and older `mcp_tool_call_end` events) and caches each file's calls by size and modification time in `~/.cache/o-mcp/examples.json`, so a second harvest reads only what changed. Every list of examples harvests first. Examples never connect; `example again` makes the same call through o-mcp (refused when the recorded arguments were redacted).
 
 ## Nouns and verbs
 
 | Noun | Verbs |
 |---|---|
-| `mcp-server` | `list` (`--harness`, `--state`, including `signed-in` and `needs-sign-in`), `show`, `discover` (`--all`), `refresh`, `test`, `login` (`--force`), `logout`, `auth-status`, `tools`, `examples`, `calls`, `forget` (delete the snapshot, never the config), `copy-id`, `copy-address` |
-| `mcp-tool` | `list` (`--server`), `show`, `schema`, `copy-schema`, `call` (`--args '{...}'`), `examples`, `calls`, `copy-command` |
-| `mcp-call` | `list`, `show`, `again`, `copy-command` |
-| `mcp-example` | `list` (`--server`, `--tool`, `--harness`), `show`, `harvest` (`--rescan`), `again`, `copy-command` |
-| `status` | `state` (the catalog's state) |
+| `mcp-server` | `lists` (every list's rows), `list` (`--harness`, `--status`, including `signed-in` and `needs-sign-in`), `show`, `discover` (`--all`), `refresh`, `test`, `login` (`--force`), `logout`, `auth-status`, `tools`, `examples`, `calls`, `forget` (delete the snapshot, never the config), `yank-id`, `yank-address` |
+| `mcp-tool` | `list` (`--server`), `show`, `schema`, `yank-schema`, `call` (`--args '{...}'`), `examples`, `calls`, `yank-command` |
+| `mcp-call` | `list`, `show`, `again`, `yank-command` |
+| `example` | `list` (`--server`, `--tool`, `--harness`), `show`, `harvest` (`--rescan`), `again`, `yank-command` |
 
-Every verb takes its thing as words (`mcp-tool show tuios tuios_list_windows`) or as a row, `--target mcp-tool/claude:user:tuios/tuios_list_windows`. Copy verbs use `$O_MCP_CLIPBOARD`, else pbcopy, wl-copy, xclip or xsel, and answer the text.
+Every verb takes its thing as words (`mcp-tool show tuios tuios_list_windows`) or as a row, `--target mcp-tool/claude:user:tuios/tuios_list_windows`. Yank verbs use `$O_MCP_CLIPBOARD`, else pbcopy, wl-copy, xclip or xsel, and answer the text.
 
 ## MCP page
 
 The catalog page carries each row's real data. Its detail shows metadata followed by Request (`arguments`) and Response (`result`, parsed from its JSON string) sections for examples and calls. Each section shows a structure tree on the left and the selected node's pretty-printed data on the right; below 64 content cells they stack. Prose and truncated JSON fall back to complete plain text. Responses remain the existing redacted previews (up to 2048 bytes), not full responses. Call rows expose their saved `preview` as `result` too. Ochazuke's shared `detail.sections` setting defaults to `true`; `false` restores the plain record detail and removes JSON trees from focus order. No new app setting is needed.
 
-Tools reads saved snapshots offline. When empty: **no tools yet: run `mcp-server discover --all`**. Calls is **o-mcp's own calls; harvested examples are under Examples; `mcp-example again` re-runs one here**. The catalog currently has no empty-list text field, so the group labels carry short reminders and this section carries the full guidance.
+Tools reads saved snapshots offline. When empty: **no tools yet: run `mcp-server discover --all`**. Calls is **o-mcp's own calls; harvested examples are under Examples; `example again` re-runs one here**. The catalog currently has no empty-list text field, so the group labels carry short reminders and this section carries the full guidance.
 
 Default normal-mode bindings are catalog data, scoped to rows in their group:
 
@@ -117,7 +116,7 @@ Default normal-mode bindings are catalog data, scoped to rows in their group:
 |---|---|---|---|
 | Servers | `g d` | `mcp-server.discover` | Selected server |
 | Servers | `g r` | `mcp-server.refresh` | Selected server |
-| Examples | `g a` | `mcp-example.again` | Selected example; makes a real call |
+| Examples | `g a` | `example.again` | Selected example; makes a real call |
 
 Enter a group to focus its rows before using these bindings. They avoid the framework's motions and the host's CRUD keys. Hosts import them only where they do not clash with their own bindings; the host's binding rows can remap or unbind them. Batch discovery remains available through the existing verb's `all` argument. The groups rail itself has no app-specific bindings: the host mounts catalog bindings on domain nouns, not individual rail instances.
 

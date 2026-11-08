@@ -102,7 +102,7 @@ func TestExampleTranscriptCompatibility(t *testing.T) {
 	if err != nil || report.Read != 0 || len(examples) != 4 {
 		t.Fatalf("cached harvest = %+v, %v", report, err)
 	}
-	for _, row := range rows(t, e.ok("mcp-example", "list")) {
+	for _, row := range rows(t, e.ok("example", "list")) {
 		data := row.Data.(map[string]any)
 		if data["transcript"] == nil || data["path"] != nil {
 			t.Fatalf("cached example = %#v", data)
@@ -143,7 +143,7 @@ func mountedMCPPage(t *testing.T, row ListRow, width, height int) *ochazuke.Mode
 	if err := r.OpenPage(v.Page()); err != nil {
 		t.Fatal(err)
 	}
-	list := "mcp-examples"
+	list := "examples"
 	if selected.Noun == callNoun {
 		list = "mcp-calls"
 	}
@@ -246,7 +246,7 @@ func TestMCPPageBindings(t *testing.T) {
 	e := newEnv(t)
 	var doc ocli.CatalogDoc
 	json.Unmarshal([]byte(e.ok("catalog")), &doc)
-	want := map[string]string{serverNoun + ":g d": "mcp-server.discover", serverNoun + ":g r": "mcp-server.refresh", exampleNoun + ":g a": "mcp-example.again"}
+	want := map[string]string{serverNoun + ":g d": "mcp-server.discover", serverNoun + ":g r": "mcp-server.refresh", exampleNoun + ":g a": "example.again"}
 	got := map[string]string{}
 	r := ochazuke.NewRuntime()
 	r.Config().Disable()

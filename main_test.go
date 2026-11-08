@@ -117,10 +117,10 @@ func TestConfiguredListsEveryHarnessDisabledToo(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("configured = %v, want %v", got, want)
 	}
-	if got := ids(rows(t, e.ok("configured", "--state", "disabled"))); !reflect.DeepEqual(got, []string{"mcp-server/codex:user:off"}) {
+	if got := ids(rows(t, e.ok("configured", "--status", "disabled"))); !reflect.DeepEqual(got, []string{"mcp-server/codex:user:off"}) {
 		t.Fatalf("disabled view = %v", got)
 	}
-	if got := ids(rows(t, e.ok("mcp-server", "list", "--harness", "codex", "--state", "enabled"))); !reflect.DeepEqual(got, []string{"mcp-server/codex:user:remote"}) {
+	if got := ids(rows(t, e.ok("mcp-server", "list", "--harness", "codex", "--status", "enabled"))); !reflect.DeepEqual(got, []string{"mcp-server/codex:user:remote"}) {
 		t.Fatalf("codex enabled = %v", got)
 	}
 	out := e.ok("mcp-server", "show", "remote")
@@ -148,12 +148,12 @@ func TestDiscoverSavesSchemasUsableOffline(t *testing.T) {
 	if out := e.ok("mcp-tool", "schema", "--target", "mcp-tool/claude:user:fake/echo"); !strings.Contains(out, `"properties"`) {
 		t.Fatalf("schema by target = %s", out)
 	}
-	srv := rows(t, e.ok("configured", "--state", "saved"))
+	srv := rows(t, e.ok("configured", "--status", "saved"))
 	if len(srv) != 1 || !strings.Contains(srv[0].Label, "not configured") {
 		t.Fatalf("saved, unconfigured = %+v", srv)
 	}
-	if out := e.ok("mcp-tool", "copy-schema", "fake", "echo"); !strings.Contains(out, `"copied": true`) {
-		t.Fatalf("copy-schema = %s", out)
+	if out := e.ok("mcp-tool", "yank-schema", "fake", "echo"); !strings.Contains(out, `"copied": true`) {
+		t.Fatalf("yank-schema = %s", out)
 	}
 }
 
@@ -248,7 +248,7 @@ func TestParseCallKeyValues(t *testing.T) {
 func TestExamplesFromSessionLogs(t *testing.T) {
 	e := newEnv(t)
 	all := rows(t, e.ok("examples"))
-	if got := ids(all); !reflect.DeepEqual(got, []string{"mcp-example/codex:call_2", "mcp-example/codex:call_1", "mcp-example/claude:toolu_3", "mcp-example/claude:toolu_1"}) {
+	if got := ids(all); !reflect.DeepEqual(got, []string{"example/codex:call_2", "example/codex:call_1", "example/claude:toolu_3", "example/claude:toolu_1"}) {
 		t.Fatalf("examples = %v", got)
 	}
 	ex := rows(t, e.ok("mcp-tool", "examples", "fake", "echo"))
@@ -259,7 +259,7 @@ func TestExamplesFromSessionLogs(t *testing.T) {
 	if strings.Contains(string(b), "ghp_") || !strings.Contains(string(b), "from claude") {
 		t.Fatalf("redaction or content wrong: %s", b)
 	}
-	if got := rows(t, e.ok("mcp-example", "list", "--harness", "claude", "--tool", "fail")); len(got) != 1 || !strings.Contains(got[0].Label, "error") {
+	if got := rows(t, e.ok("example", "list", "--harness", "claude", "--tool", "fail")); len(got) != 1 || !strings.Contains(got[0].Label, "error") {
 		t.Fatalf("claude fail = %+v", got)
 	}
 	// Cached: a second harvest reads no file.
@@ -273,11 +273,11 @@ func TestExamplesFromSessionLogs(t *testing.T) {
 		t.Fatalf("rescan = %+v", rep)
 	}
 	// The example's call, made again through o-mcp, is recorded.
-	out := e.ok("mcp-example", "again", "--target", "mcp-example/codex:call_1")
+	out := e.ok("example", "again", "--target", "example/codex:call_1")
 	if !strings.Contains(out, "from codex") {
 		t.Fatalf("again = %s", out)
 	}
-	if _, errOut, code := e.run("", "mcp-example", "again", "claude:toolu_1"); code == 0 || !strings.Contains(errOut, "redacted") {
+	if _, errOut, code := e.run("", "example", "again", "claude:toolu_1"); code == 0 || !strings.Contains(errOut, "redacted") {
 		t.Fatalf("redacted args replayed: %d %s", code, errOut)
 	}
 }
@@ -292,7 +292,7 @@ func TestStateCarriesEveryNoun(t *testing.T) {
 			want[row.ID] = row.Data
 		}
 	}
-	out := e.ok("state")
+	out := e.ok("lists")
 	seen := map[string]int{}
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
 		var r struct {

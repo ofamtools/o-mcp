@@ -21,7 +21,7 @@ var right = ochazuke.AlignRight
 
 var tables = map[string]table{
 	serverNoun: {
-		columns: []ochazuke.Column{{Title: "server", Min: 8}, {Title: "harness", Priority: 1}, {Title: "scope", Priority: 4}, {Title: "transport", Priority: 3}, {Title: "state", Priority: 1}, {Title: "tools", Align: right, Priority: 2}, {Title: "address", Priority: 5}},
+		columns: []ochazuke.Column{{Title: "server", Min: 8}, {Title: "harness", Priority: 1}, {Title: "scope", Priority: 4}, {Title: "transport", Priority: 3}, {Title: "status", Priority: 1}, {Title: "tools", Align: right, Priority: 2}, {Title: "address", Priority: 5}},
 		cells: func(v any) []string {
 			r := v.(ServerRow)
 			state := "enabled"

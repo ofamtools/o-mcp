@@ -26,7 +26,7 @@ func (t *Tool) commands(sh *ocli.Shell) []oden.Command {
 	}
 	return []oden.Command{
 		{Name: "call", Summary: "call SERVER TOOL [KEY=VALUE...] [--data JSON | --args-file FILE|-] [--extract] [--timeout SECONDS]: print the MCP result as JSON; a tool error prints it and exits 1", Run: t.callCommandRun},
-		forward("configured", "the servers every harness configures, disabled ones too (mcp-server list; --harness H, --state enabled|disabled|saved|stale|unsaved)", serverNoun, "list"),
+		forward("configured", "the servers every harness configures, disabled ones too (mcp-server list; --harness H, --status enabled|disabled|saved|stale|unsaved)", serverNoun, "list"),
 		forward("discover", "discover SERVER | --all: connect, list every tool, save the schemas (mcp-server discover)", serverNoun, "discover"),
 		forward("refresh", "refresh [SERVER]: discover the saved servers again (mcp-server refresh)", serverNoun, "refresh"),
 		forward("test", "test SERVER: initialize only (mcp-server test)", serverNoun, "test"),
@@ -40,10 +40,10 @@ func (t *Tool) commands(sh *ocli.Shell) []oden.Command {
 		}},
 		forward("tools", "tools [SERVER]: the saved tools, offline (mcp-tool list)", toolNoun, "list"),
 		forward("tool", "tool SERVER TOOL: one saved tool, its schema and call command (mcp-tool show)", toolNoun, "show"),
-		forward("examples", "examples [SERVER [TOOL]]: real calls from Claude and Codex session logs (mcp-example list)", exampleNoun, "list"),
-		forward("harvest", "harvest [--rescan]: read the session logs into the examples cache (mcp-example harvest)", exampleNoun, "harvest"),
+		forward("examples", "examples [SERVER [TOOL]]: real calls from Claude and Codex session logs (example list)", exampleNoun, "list"),
+		forward("harvest", "harvest [--rescan]: read the session logs into the examples cache (example harvest)", exampleNoun, "harvest"),
 		forward("calls", "calls [SERVER [TOOL]]: o-mcp's own call history (mcp-call list)", callNoun, "list"),
-		forward("state", "every list's rows as JSON Lines (status state)", "status", "state"),
+		forward("lists", "every list's rows as JSON Lines (mcp-server lists)", serverNoun, "lists"),
 	}
 }
 

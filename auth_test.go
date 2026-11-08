@@ -51,7 +51,7 @@ func TestSignInCommands(t *testing.T) {
 	if !found {
 		t.Fatalf("discover --all errors = %+v", res.Errors)
 	}
-	rs := rows(t, e.ok("configured", "--state", "needs-sign-in"))
+	rs := rows(t, e.ok("configured", "--status", "needs-sign-in"))
 	if len(rs) != 1 || rs[0].ID != "mcp-server/claude:user:gw" || !strings.Contains(strings.Join(rs[0].Cells, " "), "needs sign-in") {
 		t.Fatalf("configured needs-sign-in = %+v", rs)
 	}
@@ -77,7 +77,7 @@ func TestSignInCommands(t *testing.T) {
 	if json.Unmarshal([]byte(out), &all); len(all) != 2 { // gw and oauth-only
 		t.Fatalf("auth status (all) = %s", out)
 	}
-	if rs := rows(t, e.ok("configured", "--state", "signed-in")); len(rs) != 1 {
+	if rs := rows(t, e.ok("configured", "--status", "signed-in")); len(rs) != 1 {
 		t.Fatalf("configured signed-in = %+v", rs)
 	}
 
@@ -95,7 +95,7 @@ func TestSignInCommands(t *testing.T) {
 	if code != 0 || !strings.Contains(out, `"deleted": true`) || !strings.Contains(out, `"revoked": true`) {
 		t.Fatalf("logout: %d %s", code, out)
 	}
-	if out, _, _ := run("auth", "status", "gw"); !strings.Contains(out, `"state": "signed-out"`) {
+	if out, _, _ := run("auth", "status", "gw"); !strings.Contains(out, `"status": "signed-out"`) {
 		t.Fatalf("after logout = %s", out)
 	}
 	if len(e.tool.Keyring.(*client.MemoryKeyring).Accounts(client.KeychainService)) != 0 {

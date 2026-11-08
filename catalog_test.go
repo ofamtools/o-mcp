@@ -32,7 +32,7 @@ func TestCatalog(t *testing.T) {
 	if err := json.Unmarshal([]byte(e.ok("catalog")), &doc); err != nil {
 		t.Fatal(err)
 	}
-	if doc.Schema != 1 || doc.State != "status.state" {
+	if doc.Schema != 1 || doc.State != "mcp-server.lists" {
 		t.Fatalf("schema %d, state %q", doc.Schema, doc.State)
 	}
 	listRows := map[string]string{}

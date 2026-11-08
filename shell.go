@@ -16,7 +16,7 @@ import (
 )
 
 // The runtime: four nouns a host lists (rowNouns), each list's rows
-// {id: "NOUN/ID", label, data, cells}, and status state, every list's
+// {id: "NOUN/ID", label, data, cells}, and mcp-server lists, every list's
 // rows as JSON Lines (the catalog's state). The MCP page (mcpPage) mounts
 // them in a host. Verbs take their thing as a positional word or as
 // --target NOUN/ID (a row a host selected).
@@ -25,7 +25,7 @@ const (
 	serverNoun  = "mcp-server"
 	toolNoun    = "mcp-tool"
 	callNoun    = "mcp-call"
-	exampleNoun = "mcp-example"
+	exampleNoun = "example"
 )
 
 var rowNouns = []string{serverNoun, toolNoun, callNoun, exampleNoun}
@@ -114,7 +114,7 @@ func result(v any, err error) ochazuke.Result {
 
 func (t *Tool) shell() *ocli.Shell {
 	r := ochazuke.NewRuntime()
-	lists := map[string]*ochazuke.List{}
+	lists := map[string]*ochazuke.Collection{}
 	for _, noun := range rowNouns {
 		list, err := r.AddList("list/"+noun, nil)
 		if err != nil {
@@ -131,7 +131,7 @@ func (t *Tool) shell() *ocli.Shell {
 	serverList := func(c ochazuke.Ctx) ([]ListRow, error) {
 		rows, warnings := t.serverRows()
 		warn(warnings)
-		rows, err := filterServers(rows, ochazuke.StringArg(c.Args, "harness", ""), ochazuke.StringArg(c.Args, "state", ""))
+		rows, err := filterServers(rows, ochazuke.StringArg(c.Args, "harness", ""), ochazuke.StringArg(c.Args, "status", ""))
 		out := []ListRow{}
 		for _, r := range rows {
 			out = append(out, serverRow(r))
@@ -219,8 +219,9 @@ func (t *Tool) shell() *ocli.Shell {
 	}
 
 	// mcp-server
-	r.Define(serverNoun).Columns(tables[serverNoun].columns...).
-		Verb("list", func(c ochazuke.Ctx) ochazuke.Result { return result(serverList(c)) },
+	r.Define(serverNoun).Columns(tables[serverNoun].columns...).Main(). // the tool's main noun: `o-mcp list` is `mcp-server list`
+
+										Verb("list", func(c ochazuke.Ctx) ochazuke.Result { return result(serverList(c)) },
 			"the servers every harness configures (disabled ones too) and saved servers no longer configured: {id, label, data: the server, its snapshot state and tool count, cells}").Rows(serverNoun).Fetch().
 		Verb("show", func(c ochazuke.Ctx) ochazuke.Result {
 			ref := thing(c, serverNoun, "server")
@@ -269,7 +270,7 @@ func (t *Tool) shell() *ocli.Shell {
 		}, "the server's saved tools (mcp-tool rows; offline)").Positional("server").Rows(toolNoun).Fetch().
 		Verb("examples", func(c ochazuke.Ctx) ochazuke.Result {
 			return result(exampleList(serverName(thing(c, serverNoun, "server")), "", ochazuke.StringArg(c.Args, "harness", ""), ochazuke.IntArg(c.Args, "limit", 50)))
-		}, "real calls to the server's tools from Claude and Codex session logs, newest first (mcp-example rows)").Positional("server").Rows(exampleNoun).Fetch().
+		}, "real calls to the server's tools from Claude and Codex session logs, newest first (example rows)").Positional("server").Rows(exampleNoun).Fetch().
 		Verb("calls", func(c ochazuke.Ctx) ochazuke.Result {
 			return result(callList(thing(c, serverNoun, "server"), "", ochazuke.IntArg(c.Args, "limit", 0)))
 		}, "o-mcp's own calls to the server, newest first (mcp-call rows)").Positional("server").Rows(callNoun).Fetch().
@@ -280,28 +281,28 @@ func (t *Tool) shell() *ocli.Shell {
 			}
 			return result(map[string]any{"forgot": snap.Server.ID, "tools": len(snap.Tools)}, t.store().Remove(snap.Server.ID))
 		}, "delete the server's saved snapshot (never its configuration; discover saves it again)").Positional("server").Confirm("Forget the saved tools of {{id}}?").Agent(ochazuke.AgentAllow).
-		Verb("copy-id", func(c ochazuke.Ctx) ochazuke.Result {
+		Verb("yank-id", func(c ochazuke.Ctx) ochazuke.Result {
 			s, err := t.server(thing(c, serverNoun, "server"))
 			if err != nil {
 				return ochazuke.Failed(err)
 			}
-			return ochazuke.Done(t.copy(s.ID))
+			return ochazuke.Done(t.yank(s.ID))
 		}, "copy the server's ID (HARNESS:SCOPE:NAME) to the clipboard and answer it").Positional("server").
-		Verb("copy-address", func(c ochazuke.Ctx) ochazuke.Result {
+		Verb("yank-address", func(c ochazuke.Ctx) ochazuke.Result {
 			s, err := t.server(thing(c, serverNoun, "server"))
 			if err != nil {
 				return ochazuke.Failed(err)
 			}
-			return ochazuke.Done(t.copy(s.Address()))
+			return ochazuke.Done(t.yank(s.Address()))
 		}, "copy the server's URL or command line (redacted) to the clipboard and answer it").Positional("server")
 	serverParam := ochazuke.Parameter{Type: "string", Noun: serverNoun, Description: "a server name or ID (HARNESS:SCOPE:NAME)"}
 	harnessParam := ochazuke.Parameter{Type: "string", Description: "only this harness's (claude, codex, omp, opencode, gemini, ...)"}
 	limitParam := ochazuke.Parameter{Type: "integer", Description: "at most this many rows, newest first (0: all)"}
 	params(r, "mcp-server.list", map[string]ochazuke.Parameter{
 		"harness": harnessParam,
-		"state":   {Type: "string", Enum: []string{"all", "enabled", "disabled", "saved", "stale", "unsaved", "signed-in", "needs-sign-in"}, Description: "the view: all (default), enabled, disabled, saved (has a snapshot), stale (its config changed since), unsaved, signed-in or needs-sign-in (OAuth)"},
+		"status":  {Type: "string", Enum: []string{"all", "enabled", "disabled", "saved", "stale", "unsaved", "signed-in", "needs-sign-in"}, Description: "the view: all (default), enabled, disabled, saved (has a snapshot), stale (its config changed since), unsaved, signed-in or needs-sign-in (OAuth)"},
 	})
-	for _, v := range []string{"show", "discover", "refresh", "test", "tools", "calls", "forget", "copy-id", "copy-address", "logout", "auth-status"} {
+	for _, v := range []string{"show", "discover", "refresh", "test", "tools", "calls", "forget", "yank-id", "yank-address", "logout", "auth-status"} {
 		params(r, "mcp-server."+v, map[string]ochazuke.Parameter{"server": serverParam})
 	}
 	params(r, "mcp-server.discover", map[string]ochazuke.Parameter{"server": serverParam, "all": {Type: "boolean", Description: "every enabled configured server; the batch continues past failures"}})
@@ -309,7 +310,7 @@ func (t *Tool) shell() *ocli.Shell {
 	params(r, "mcp-server.examples", map[string]ochazuke.Parameter{"server": serverParam, "harness": harnessParam, "limit": limitParam})
 	params(r, "mcp-server.login", map[string]ochazuke.Parameter{"server": serverParam, "force": {Type: "boolean", Description: "sign in again even when signed in"}})
 	setHistory(r, ochazuke.HistoryChange, "mcp-server.discover", "mcp-server.refresh", "mcp-server.forget", "mcp-server.login", "mcp-server.logout")
-	setHistory(r, ochazuke.HistoryAction, "mcp-server.copy-id", "mcp-server.copy-address")
+	setHistory(r, ochazuke.HistoryAction, "mcp-server.yank-id", "mcp-server.yank-address")
 
 	// mcp-tool
 	r.Define(toolNoun).Columns(tables[toolNoun].columns...).
@@ -326,13 +327,13 @@ func (t *Tool) shell() *ocli.Shell {
 		Verb("schema", func(c ochazuke.Ctx) ochazuke.Result {
 			return result(t.toolSchema(c))
 		}, "the tool's input schema (JSON Schema)").Positional("server", "tool").Fetch().
-		Verb("copy-schema", func(c ochazuke.Ctx) ochazuke.Result {
+		Verb("yank-schema", func(c ochazuke.Ctx) ochazuke.Result {
 			schema, err := t.toolSchema(c)
 			if err != nil {
 				return ochazuke.Failed(err)
 			}
 			b, _ := json.MarshalIndent(schema, "", "  ")
-			return ochazuke.Done(t.copy(string(b)))
+			return ochazuke.Done(t.yank(string(b)))
 		}, "copy the tool's input schema to the clipboard and answer it").Positional("server", "tool").
 		Verb("call", func(c ochazuke.Ctx) ochazuke.Result {
 			server, tool, err := toolRef(c)
@@ -348,7 +349,7 @@ func (t *Tool) shell() *ocli.Shell {
 				return ochazuke.Failed(err)
 			}
 			return result(exampleList(serverName(server), tool, ochazuke.StringArg(c.Args, "harness", ""), ochazuke.IntArg(c.Args, "limit", 20)))
-		}, "real calls to the tool from Claude and Codex session logs, newest first (mcp-example rows)").Positional("server", "tool").Rows(exampleNoun).Fetch().
+		}, "real calls to the tool from Claude and Codex session logs, newest first (example rows)").Positional("server", "tool").Rows(exampleNoun).Fetch().
 		Verb("calls", func(c ochazuke.Ctx) ochazuke.Result {
 			server, tool, err := toolRef(c)
 			if err != nil {
@@ -356,7 +357,7 @@ func (t *Tool) shell() *ocli.Shell {
 			}
 			return result(callList(server, tool, ochazuke.IntArg(c.Args, "limit", 0)))
 		}, "o-mcp's own calls to the tool, newest first (mcp-call rows)").Positional("server", "tool").Rows(callNoun).Fetch().
-		Verb("copy-command", func(c ochazuke.Ctx) ochazuke.Result {
+		Verb("yank-command", func(c ochazuke.Ctx) ochazuke.Result {
 			server, tool, err := toolRef(c)
 			if err != nil {
 				return ochazuke.Failed(err)
@@ -365,10 +366,10 @@ func (t *Tool) shell() *ocli.Shell {
 			if err != nil {
 				return ochazuke.Failed(err)
 			}
-			return ochazuke.Done(t.copy(d["command"].(string)))
+			return ochazuke.Done(t.yank(d["command"].(string)))
 		}, "copy the command that calls the tool with the latest observed arguments").Positional("server", "tool")
 	toolParams := map[string]ochazuke.Parameter{"server": serverParam, "tool": {Type: "string", Description: "the tool's name"}}
-	for _, v := range []string{"show", "schema", "copy-schema", "copy-command"} {
+	for _, v := range []string{"show", "schema", "yank-schema", "yank-command"} {
 		params(r, "mcp-tool."+v, toolParams)
 	}
 	params(r, "mcp-tool.list", map[string]ochazuke.Parameter{"server": serverParam})
@@ -376,7 +377,7 @@ func (t *Tool) shell() *ocli.Shell {
 	params(r, "mcp-tool.examples", merged(toolParams, map[string]ochazuke.Parameter{"harness": harnessParam, "limit": limitParam}))
 	params(r, "mcp-tool.calls", merged(toolParams, map[string]ochazuke.Parameter{"limit": limitParam}))
 	setHistory(r, ochazuke.HistoryChange, "mcp-tool.call")
-	setHistory(r, ochazuke.HistoryAction, "mcp-tool.copy-schema", "mcp-tool.copy-command")
+	setHistory(r, ochazuke.HistoryAction, "mcp-tool.yank-schema", "mcp-tool.yank-command")
 
 	// mcp-call
 	r.Define(callNoun).Columns(tables[callNoun].columns...).
@@ -393,22 +394,22 @@ func (t *Tool) shell() *ocli.Shell {
 			}
 			return result(again(rec.Server, rec.Tool, rec.Arguments))
 		}, "call the same tool with the same arguments again (refused when they were redacted)").Positional("call").
-		Verb("copy-command", func(c ochazuke.Ctx) ochazuke.Result {
+		Verb("yank-command", func(c ochazuke.Ctx) ochazuke.Result {
 			rec, err := findCall(thing(c, callNoun, "call"))
 			if err != nil {
 				return ochazuke.Failed(err)
 			}
-			return ochazuke.Done(t.copy(t.callCommand(rec.Server, rec.Tool, rec.Arguments)))
+			return ochazuke.Done(t.yank(t.callCommand(rec.Server, rec.Tool, rec.Arguments)))
 		}, "copy the command line of the call").Positional("call")
 	callParam := map[string]ochazuke.Parameter{"call": {Type: "string", Noun: callNoun, Description: "a call id from mcp-call list"}}
-	for _, v := range []string{"show", "again", "copy-command"} {
+	for _, v := range []string{"show", "again", "yank-command"} {
 		params(r, "mcp-call."+v, callParam)
 	}
 	params(r, "mcp-call.list", map[string]ochazuke.Parameter{"server": serverParam, "tool": {Type: "string", Description: "only this tool's"}, "limit": limitParam})
 	setHistory(r, ochazuke.HistoryChange, "mcp-call.again")
-	setHistory(r, ochazuke.HistoryAction, "mcp-call.copy-command")
+	setHistory(r, ochazuke.HistoryAction, "mcp-call.yank-command")
 
-	// mcp-example
+	// example
 	r.Define(exampleNoun).Columns(tables[exampleNoun].columns...).
 		Verb("list", func(c ochazuke.Ctx) ochazuke.Result {
 			return result(exampleList(ochazuke.StringArg(c.Args, "server", ""), ochazuke.StringArg(c.Args, "tool", ""), ochazuke.StringArg(c.Args, "harness", ""), ochazuke.IntArg(c.Args, "limit", 200)))
@@ -432,25 +433,25 @@ func (t *Tool) shell() *ocli.Shell {
 			}
 			return result(again(e.Server, e.Tool, e.Arguments))
 		}, "make the example's call through o-mcp: the configured server of its name, the same arguments").Positional("example").
-		Verb("copy-command", func(c ochazuke.Ctx) ochazuke.Result {
+		Verb("yank-command", func(c ochazuke.Ctx) ochazuke.Result {
 			e, err := findExample(thing(c, exampleNoun, "example"))
 			if err != nil {
 				return ochazuke.Failed(err)
 			}
-			return ochazuke.Done(t.copy(t.callCommand(e.Server, e.Tool, e.Arguments)))
+			return ochazuke.Done(t.yank(t.callCommand(e.Server, e.Tool, e.Arguments)))
 		}, "copy the command that makes the example's call").Positional("example")
-	exParam := map[string]ochazuke.Parameter{"example": {Type: "string", Noun: exampleNoun, Description: "an example id (HARNESS:CALL_ID) from mcp-example list"}}
-	for _, v := range []string{"show", "again", "copy-command"} {
-		params(r, "mcp-example."+v, exParam)
+	exParam := map[string]ochazuke.Parameter{"example": {Type: "string", Noun: exampleNoun, Description: "an example id (HARNESS:CALL_ID) from example list"}}
+	for _, v := range []string{"show", "again", "yank-command"} {
+		params(r, "example."+v, exParam)
 	}
-	params(r, "mcp-example.list", map[string]ochazuke.Parameter{"server": {Type: "string", Description: "a server name as the harnesses spell it"}, "tool": {Type: "string", Description: "only this tool's"}, "harness": harnessParam, "limit": limitParam})
-	params(r, "mcp-example.harvest", map[string]ochazuke.Parameter{"rescan": {Type: "boolean", Description: "read every session log again, not only the changed ones"}})
-	setHistory(r, ochazuke.HistoryChange, "mcp-example.again")
-	setHistory(r, ochazuke.HistoryAction, "mcp-example.copy-command")
+	params(r, "example.list", map[string]ochazuke.Parameter{"server": {Type: "string", Description: "a server name as the harnesses spell it"}, "tool": {Type: "string", Description: "only this tool's"}, "harness": harnessParam, "limit": limitParam})
+	params(r, "example.harvest", map[string]ochazuke.Parameter{"rescan": {Type: "boolean", Description: "read every session log again, not only the changed ones"}})
+	setHistory(r, ochazuke.HistoryChange, "example.again")
+	setHistory(r, ochazuke.HistoryAction, "example.yank-command")
 
-	// status: the catalog's state
-	r.Define("status").
-		Verb("state", func(c ochazuke.Ctx) ochazuke.Result {
+	// lists: the catalog's state source (every list's rows in one call)
+	r.Define(serverNoun).
+		Verb("lists", func(c ochazuke.Ctx) ochazuke.Result {
 			var out ocli.Lines
 			add := func(noun string, rows []ListRow, err error) {
 				if err != nil {
@@ -469,7 +470,7 @@ func (t *Tool) shell() *ocli.Shell {
 			rows, err = exampleList("", "", "", stateExamples)
 			add(exampleNoun, rows, err)
 			return ochazuke.Done(out)
-		}, "every list's rows in one answer, JSON Lines {noun, id, label, data, cells} for "+strings.Join(rowNouns, ", ")+" (the newest examples only; the catalog's state)").State().Fetch()
+		}, "every list's rows in one answer, JSON Lines {noun, id, label, data, cells} for "+strings.Join(rowNouns, ", ")+" (the newest examples only; the catalog's state source)").Lists().Fetch()
 
 	// Each list noun is a thing noun over its list verb (Runtime.DefineListFacts).
 	r.DefineListFacts([]ochazuke.ListFacts{
@@ -489,7 +490,7 @@ func (t *Tool) shell() *ocli.Shell {
 		Bind("g d", ochazuke.Do("mcp-server.discover")).
 		Bind("g r", ochazuke.Do("mcp-server.refresh"))
 	r.Define(exampleNoun).Mode("normal").
-		Bind("g a", ochazuke.Do("mcp-example.again"))
+		Bind("g a", ochazuke.Do("example.again"))
 
 	if err := ocli.DeclarePage(r, mcpPage()); err != nil {
 		panic(err)
@@ -522,7 +523,7 @@ func mcpPage() ocli.CatalogPage {
 			{ID: "mcp-servers", Noun: serverNoun, Title: "Servers"},
 			{ID: "mcp-tools", Noun: toolNoun, Title: "Tools (discover to populate)"},
 			{ID: "mcp-calls", Noun: callNoun, Title: "Calls (o-mcp's own)"},
-			{ID: "mcp-examples", Noun: exampleNoun, Title: "Examples"},
+			{ID: "examples", Noun: exampleNoun, Title: "Examples"},
 		},
 		Detail: &ocli.CatalogDetail{Sections: []ocli.CatalogDetailSection{
 			{Kind: "fields", Title: "Metadata", Fields: []ocli.CatalogDetailField{
@@ -588,7 +589,7 @@ func (t *Tool) toolSchema(c ochazuke.Ctx) (any, error) {
 // copy writes text to the clipboard ($O_MCP_CLIPBOARD, else pbcopy,
 // wl-copy, xclip or xsel; o-md's) and answers it, with whether it was
 // copied.
-func (t *Tool) copy(text string) map[string]any {
+func (t *Tool) yank(text string) map[string]any {
 	var argv []string
 	if cmd := t.getenv("O_MCP_CLIPBOARD"); cmd != "" {
 		argv = strings.Fields(cmd)

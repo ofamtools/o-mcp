@@ -99,7 +99,7 @@ func (e *signInEnv) noTokens(texts ...string) {
 func TestLoginDiscoversRegistersAndKeepsTokensInTheKeyring(t *testing.T) {
 	e := newSignIn(t, nil)
 	st := e.login()
-	if !st.SignedIn || st.State != SignedIn || st.Issuer != e.fake.URL || st.Registration != "dynamic" || !reflect.DeepEqual(st.Scopes, []string{"read"}) || !st.Refreshable || st.Expiry == nil {
+	if !st.SignedIn || st.Status != SignedIn || st.Issuer != e.fake.URL || st.Registration != "dynamic" || !reflect.DeepEqual(st.Scopes, []string{"read"}) || !st.Refreshable || st.Expiry == nil {
 		t.Fatalf("status = %+v", st)
 	}
 	account := keychainAccount(e.server.ID, e.fake.URL)
@@ -137,7 +137,7 @@ func TestLoginDiscoversRegistersAndKeepsTokensInTheKeyring(t *testing.T) {
 	// The record is the non-secret half.
 	b, _ := os.ReadFile(recordPath(e.o.withDefaults(), e.server.ID))
 	var rec AuthRecord
-	if json.Unmarshal(b, &rec) != nil || rec.Account != account || rec.State != SignedIn {
+	if json.Unmarshal(b, &rec) != nil || rec.Account != account || rec.Status != SignedIn {
 		t.Fatalf("record = %s", b)
 	}
 }
@@ -237,7 +237,7 @@ func TestFailedRefreshAsksToSignInAgain(t *testing.T) {
 			if !IsNeedsLogin(err) || !strings.Contains(err.Error(), "sign in again: o-mcp login gw") || !strings.Contains(err.Error(), "invalid_grant") {
 				t.Fatalf("err = %v", err)
 			}
-			if st := Status(e.server, e.o); st.SignedIn || st.State != NeedsSignIn {
+			if st := Status(e.server, e.o); st.SignedIn || st.Status != NeedsSignIn {
 				t.Fatalf("status = %+v", st)
 			}
 			e.noTokens(err.Error())
@@ -285,7 +285,7 @@ func TestLogoutRevokesAndDeletes(t *testing.T) {
 	if len(e.keys.Accounts(KeychainService)) != 0 {
 		t.Fatal("the keyring item is still there")
 	}
-	if st := Status(e.server, e.o); st.State != SignedOut || st.SignedIn {
+	if st := Status(e.server, e.o); st.Status != SignedOut || st.SignedIn {
 		t.Fatalf("status = %+v", st)
 	}
 	out, _ := json.Marshal(res)
@@ -365,5 +365,18 @@ func TestRealKeychain(t *testing.T) {
 	}
 	if _, err := k.Get(svc, acct); err != ErrNoItem {
 		t.Fatalf("after delete = %v", err)
+	}
+}
+
+// A record an older o-mcp wrote says "state" for what is now "status": it is
+// read as status, and written back so.
+func TestOlderAuthRecordStateKeyReadsAsStatus(t *testing.T) {
+	var r AuthRecord
+	if err := json.Unmarshal([]byte(`{"server":"s","name":"n","state":"signed-in","updatedAt":"2026-01-01T00:00:00Z"}`), &r); err != nil || r.Status != SignedIn {
+		t.Fatalf("older record: %+v (%v)", r, err)
+	}
+	b, err := json.Marshal(r)
+	if err != nil || !strings.Contains(string(b), `"status":"signed-in"`) || strings.Contains(string(b), `"state"`) {
+		t.Fatalf("written back: %s (%v)", b, err)
 	}
 }

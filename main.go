@@ -6,7 +6,7 @@
 // runtime behind it, so `o-mcp catalog` answers a host (mtm mounts it as
 // the MCP page). Package client is the same work in process.
 //
-//	o-mcp configured [--harness H] [--state S]      the configured servers
+//	o-mcp configured [--harness H] [--status S]      the configured servers
 //	o-mcp discover SERVER | --all                   connect, list tools, save
 //	o-mcp refresh [SERVER]                          discover the saved servers again
 //	o-mcp test SERVER                               initialize only
@@ -19,7 +19,7 @@
 //	o-mcp examples SERVER [TOOL]                    real calls from session logs
 //	o-mcp harvest [--rescan]                        read the session logs
 //	o-mcp calls [SERVER [TOOL]]                     o-mcp's own call history
-//	o-mcp NOUN VERB ...                             mcp-server, mcp-tool, mcp-call, mcp-example
+//	o-mcp NOUN VERB ...                             mcp-server, mcp-tool, mcp-call, example
 //	o-mcp catalog                                   the nouns and verbs, for a host
 package main
 

@@ -1,0 +1,3 @@
+# lexiconcheck baseline: rule, subject. Only shrinks.
+# The program's namespace mcp is also the noun of the framework's own ochazuke.mcp (instructions, config, tools, serve). Clearing it needs the framework noun renamed or the namespace changed (a decision for the owner).
+namespace-word	mcp
