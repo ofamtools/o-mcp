@@ -910,3 +910,11 @@ example	noun	yes	lx8c-b
 yank-address	action	yes	lx8c-b
 yank-command	action	yes	lx8c-b
 yank-schema	action	yes	lx8c-b
+first	action	seed	ochazuke v0.110
+hide	action	seed	ochazuke v0.110
+last	action	seed	ochazuke v0.110
+move-down	action	seed	ochazuke v0.110
+move-up	action	seed	ochazuke v0.110
+referrer	noun	seed	ochazuke v0.110
+related	noun	seed	ochazuke v0.110
+related-section	noun	seed	ochazuke v0.110
